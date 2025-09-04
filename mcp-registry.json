@@ -4,8 +4,14 @@
   "description": "Paestro MCP Service Registry - Automatically managed by Orchestrator",
   "mcps": {
     "main-platform": {
+      "name": "main-platform",
+      "version": "1.0.0",
       "url": "https://paestro-mcp-modular-production.up.railway.app",
       "status": "active",
+      "endpoints": {
+        "default": "https://paestro-mcp-modular-production.up.railway.app"
+      },
+      "tools": ["orchestrate", "get_organization_overview", "process_payment", "send_notification", "create_tournament"],
       "capabilities": [
         "users",
         "organizations",
@@ -35,8 +41,14 @@
       }
     },
     "google-workspace": {
+      "name": "google-workspace",
+      "version": "1.0.0",
       "url": "https://paestro-google-workspace-mcp-production.up.railway.app",
       "status": "active",
+      "endpoints": {
+        "default": "https://paestro-google-workspace-mcp-production.up.railway.app"
+      },
+      "tools": ["sync_contacts", "create_calendar_event", "send_email", "create_document"],
       "capabilities": [
         "contacts",
         "calendar",
