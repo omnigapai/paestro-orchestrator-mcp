@@ -74,9 +74,9 @@ class OrchestratorServer {
           environment: process.env.NODE_ENV || 'production',
           port: PORT,
           mcps: {
-            total: Object.keys(mcps).length,
-            active: Object.values(mcps).filter(m => m.status === 'active').length,
-            failed: Object.values(mcps).filter(m => m.status === 'failed').length
+            total: mcps.length,
+            active: mcps.filter(m => m.status === 'active').length,
+            failed: mcps.filter(m => m.status === 'failed').length
           }
         };
         res.writeHead(200);
@@ -92,31 +92,46 @@ class OrchestratorServer {
         return;
       }
 
-      // Route to appropriate MCP based on capability
-      if (pathname.startsWith('/api/')) {
+      // Route to appropriate MCP based on path patterns
+      if (pathname !== '/' && pathname !== '/health' && pathname !== '/api/mcps') {
         const body = await this.getRequestBody(req);
-        const pathSegments = pathname.split('/').filter(s => s);
         
-        // Determine capability from path
-        let capability = null;
-        if (pathSegments[1]) {
-          capability = pathSegments[1]; // e.g., /api/users -> users
+        // Try to match route patterns from registry
+        const registry = this.discoveryService.registry;
+        let targetMcp = null;
+        
+        // Check routing patterns
+        if (registry.routing_rules && registry.routing_rules.patterns) {
+          for (const [pattern, capabilities] of Object.entries(registry.routing_rules.patterns)) {
+            const regex = new RegExp(pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]+'));
+            if (regex.test(pathname)) {
+              // Find first available MCP with this capability
+              for (const cap of capabilities) {
+                const mcps = this.discoveryService.getMcpsByCapability(cap);
+                if (mcps.length > 0) {
+                  targetMcp = mcps[0];
+                  break;
+                }
+              }
+              if (targetMcp) break;
+            }
+          }
+        }
+        
+        // Default: route to main-platform if no pattern matches
+        if (!targetMcp) {
+          targetMcp = this.discoveryService.getMcp('main-platform') || 
+                      this.discoveryService.getMcps()[0];
         }
 
-        // Find MCP for this capability
-        const mcpsWithCapability = this.discoveryService.getMcpsByCapability(capability);
-        const mcp = mcpsWithCapability[0]; // Use first available MCP with this capability
-        if (!mcp) {
+        if (!targetMcp) {
           res.writeHead(404);
-          res.end(JSON.stringify({ 
-            error: `No MCP found for capability: ${capability}`,
-            availableMCPs: Object.keys(this.discoveryService.getMcps())
-          }));
+          res.end(JSON.stringify({ error: 'No MCPs available' }));
           return;
         }
 
         // Forward request to MCP
-        const result = await this.forwardToMCP(mcp, pathname, method, body, req.headers);
+        const result = await this.forwardToMCP(targetMcp, pathname, method, body, req.headers);
         res.writeHead(result.status || 200);
         res.end(JSON.stringify(result.data));
         return;
