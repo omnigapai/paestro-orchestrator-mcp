@@ -1,0 +1,299 @@
+{
+  "version": "1.0",
+  "updated": "2025-09-04T14:14:38.690Z",
+  "description": "Paestro MCP Service Registry - Automatically managed by Orchestrator",
+  "mcps": {
+    "main-platform": {
+      "url": "https://paestro-mcp-modular-production.up.railway.app",
+      "status": "active",
+      "capabilities": [
+        "users",
+        "organizations",
+        "payments",
+        "coach",
+        "parent",
+        "student",
+        "tournaments",
+        "analytics",
+        "reports",
+        "video-analysis",
+        "sms",
+        "email"
+      ],
+      "health_endpoint": "/health",
+      "description": "Main Paestro MCP with 15+ specialized agents including TournamentMaster, CoachAgent, VideoAgent, etc.",
+      "priority": 1,
+      "timeout": 30000,
+      "retry_config": {
+        "max_retries": 5,
+        "initial_delay": 1000,
+        "max_delay": 30000
+      },
+      "load_balancer": {
+        "weight": 10,
+        "max_concurrent": 50
+      }
+    },
+    "google-workspace": {
+      "url": "https://paestro-google-workspace-mcp-production.up.railway.app",
+      "status": "active",
+      "capabilities": [
+        "contacts",
+        "calendar",
+        "email",
+        "drive",
+        "sheets",
+        "docs",
+        "meet"
+      ],
+      "health_endpoint": "/health",
+      "description": "Google Workspace integration MCP for calendar, email, and document management",
+      "priority": 2,
+      "timeout": 25000,
+      "retry_config": {
+        "max_retries": 3,
+        "initial_delay": 2000,
+        "max_delay": 20000
+      },
+      "load_balancer": {
+        "weight": 5,
+        "max_concurrent": 20
+      }
+    },
+    "textbee": {
+      "url": "http://localhost:3004",
+      "status": "failed",
+      "capabilities": [
+        "sms",
+        "mms",
+        "voice",
+        "bulk-messaging",
+        "automation",
+        "templates"
+      ],
+      "health_endpoint": "/health",
+      "description": "TextBee SMS/MMS communication MCP for customer messaging and automation",
+      "priority": 3,
+      "timeout": 20000,
+      "retry_config": {
+        "max_retries": 3,
+        "initial_delay": 1500,
+        "max_delay": 15000
+      },
+      "load_balancer": {
+        "weight": 7,
+        "max_concurrent": 30
+      }
+    },
+    "stripe-payments": {
+      "url": "http://localhost:3005",
+      "status": "failed",
+      "capabilities": [
+        "payments",
+        "subscriptions",
+        "invoices",
+        "customers",
+        "billing",
+        "webhooks"
+      ],
+      "health_endpoint": "/health",
+      "description": "Dedicated Stripe payments MCP for secure payment processing",
+      "priority": 1,
+      "timeout": 45000,
+      "retry_config": {
+        "max_retries": 5,
+        "initial_delay": 2000,
+        "max_delay": 30000
+      },
+      "load_balancer": {
+        "weight": 8,
+        "max_concurrent": 25
+      }
+    },
+    "ai-analysis": {
+      "url": "http://localhost:3006",
+      "status": "failed",
+      "capabilities": [
+        "video-analysis",
+        "pose-detection",
+        "performance-metrics",
+        "ml-predictions",
+        "computer-vision",
+        "ai-insights"
+      ],
+      "health_endpoint": "/health",
+      "description": "AI-powered video analysis and performance tracking MCP",
+      "priority": 2,
+      "timeout": 120000,
+      "retry_config": {
+        "max_retries": 2,
+        "initial_delay": 5000,
+        "max_delay": 60000
+      },
+      "load_balancer": {
+        "weight": 3,
+        "max_concurrent": 10
+      }
+    },
+    "tripadvisor": {
+      "url": "http://localhost:3007",
+      "status": "active",
+      "capabilities": [
+        "hotels",
+        "restaurants", 
+        "attractions",
+        "location-search",
+        "reviews",
+        "photos",
+        "travel-data",
+        "hotel-suitability"
+      ],
+      "health_endpoint": "/health",
+      "description": "TripAdvisor Content API integration for hotel search, reviews, and travel data",
+      "priority": 2,
+      "timeout": 30000,
+      "retry_config": {
+        "max_retries": 3,
+        "initial_delay": 2000,
+        "max_delay": 20000
+      },
+      "load_balancer": {
+        "weight": 6,
+        "max_concurrent": 25
+      }
+    }
+  },
+  "global_config": {
+    "discovery_interval": 30000,
+    "health_check_interval": 30000,
+    "cache_ttl": 300000,
+    "request_timeout": 30000,
+    "max_concurrent_requests": 100,
+    "circuit_breaker": {
+      "failure_threshold": 5,
+      "recovery_timeout": 60000,
+      "half_open_max_requests": 3
+    },
+    "load_balancer": {
+      "strategy": "weighted_round_robin",
+      "health_check_required": true,
+      "sticky_sessions": false
+    }
+  },
+  "routing_rules": {
+    "patterns": {
+      "/api/users/**": [
+        "users"
+      ],
+      "/api/organizations/**": [
+        "organizations"
+      ],
+      "/api/payments/**": [
+        "payments"
+      ],
+      "/api/coach/**": [
+        "coach"
+      ],
+      "/api/parent/**": [
+        "parent"
+      ],
+      "/api/student/**": [
+        "student"
+      ],
+      "/api/tournaments/**": [
+        "tournaments"
+      ],
+      "/api/sms/**": [
+        "sms"
+      ],
+      "/api/email/**": [
+        "email"
+      ],
+      "/api/calendar/**": [
+        "calendar"
+      ],
+      "/api/contacts/**": [
+        "contacts"
+      ],
+      "/coach/**/google-contacts": [
+        "contacts"
+      ],
+      "/coach/**/google-oauth-status": [
+        "contacts",
+        "calendar"
+      ],
+      "/api/video/**": [
+        "video-analysis"
+      ],
+      "/api/analytics/**": [
+        "analytics"
+      ],
+      "/api/reports/**": [
+        "reports"
+      ],
+      "/api/hotels/**": [
+        "hotels",
+        "travel-data"
+      ],
+      "/api/location/**": [
+        "location-search",
+        "travel-data"
+      ],
+      "/tools/search_locations": [
+        "location-search"
+      ],
+      "/tools/search_nearby_locations": [
+        "location-search"
+      ],
+      "/tools/get_location_details": [
+        "hotels",
+        "restaurants",
+        "attractions"
+      ],
+      "/tools/get_location_reviews": [
+        "reviews"
+      ],
+      "/tools/get_location_photos": [
+        "photos"
+      ]
+    },
+    "fallbacks": {
+      "default": [
+        "users",
+        "organizations"
+      ],
+      "payment": [
+        "payments",
+        "users"
+      ],
+      "communication": [
+        "sms",
+        "email"
+      ],
+      "analysis": [
+        "video-analysis",
+        "analytics"
+      ],
+      "travel": [
+        "hotels",
+        "travel-data",
+        "location-search"
+      ],
+      "hotels": [
+        "hotels",
+        "travel-data"
+      ]
+    }
+  },
+  "monitoring": {
+    "metrics_collection": true,
+    "performance_tracking": true,
+    "error_tracking": true,
+    "usage_analytics": true,
+    "alerts": {
+      "mcp_down": true,
+      "high_latency": true,
+      "error_rate_threshold": 0.05
+    }
+  }
+}

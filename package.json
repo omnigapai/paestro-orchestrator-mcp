@@ -1,0 +1,113 @@
+{
+  "name": "@paestro/orchestrator-mcp",
+  "version": "1.0.0",
+  "description": "Production-ready MCP orchestration system with service discovery, circuit breakers, and saga pattern workflows",
+  "main": "index.js",
+  "scripts": {
+    "start": "node example-usage.js",
+    "dev": "NODE_ENV=development node example-usage.js",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "jest --testPathPattern=test/unit",
+    "test:integration": "jest --testPathPattern=test/integration",
+    "lint": "eslint *.js",
+    "lint:fix": "eslint *.js --fix",
+    "docs": "jsdoc -c jsdoc.config.js",
+    "health-check": "node -e \"require('./example-usage').OrchestrationExample().then(e => e.performHealthCheck().then(() => process.exit(0)).catch(() => process.exit(1)))\"",
+    "registry:validate": "node -e \"const fs = require('fs'); try { JSON.parse(fs.readFileSync('./mcp-registry.json', 'utf8')); console.log('✅ Registry valid'); } catch(e) { console.error('❌ Registry invalid:', e.message); process.exit(1); }\"",
+    "workflow:validate": "node -e \"const yaml = require('js-yaml'); const fs = require('fs'); try { yaml.load(fs.readFileSync('./example-workflow.yaml', 'utf8')); console.log('✅ Workflow valid'); } catch(e) { console.error('❌ Workflow invalid:', e.message); process.exit(1); }\"",
+    "metrics": "node -e \"require('./example-usage').OrchestrationExample().then(e => e.initialize().then(() => { e.getSystemMetrics(); process.exit(0); }))\"",
+    "docker:build": "docker build -t paestro/orchestrator-mcp .",
+    "docker:run": "docker run -p 3000:3000 -e NODE_ENV=production paestro/orchestrator-mcp"
+  },
+  "keywords": [
+    "mcp",
+    "orchestration",
+    "microservices", 
+    "workflow",
+    "saga",
+    "circuit-breaker",
+    "service-discovery",
+    "distributed-systems",
+    "resilience",
+    "automation"
+  ],
+  "author": "Paestro Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "uuid": "^9.0.1",
+    "node-fetch": "^2.7.0",
+    "chokidar": "^3.5.3"
+  },
+  "devDependencies": {
+    "@kubernetes/client-node": "^0.20.0",
+    "jest": "^29.7.0",
+    "eslint": "^8.57.0",
+    "jsdoc": "^4.0.2",
+    "supertest": "^6.3.3",
+    "docker": "^1.0.0"
+  },
+  "optionalDependencies": {
+    "@kubernetes/client-node": "^0.20.0"
+  },
+  "peerDependencies": {
+    "winston": "^3.11.0",
+    "prometheus-register": "^1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paestro/orchestrator-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/paestro/orchestrator-mcp/issues"
+  },
+  "homepage": "https://github.com/paestro/orchestrator-mcp#readme",
+  "files": [
+    "*.js",
+    "*.yaml",
+    "*.json",
+    "docs/",
+    "examples/",
+    "schemas/"
+  ],
+  "config": {
+    "registry_path": "./mcp-registry.json",
+    "default_timeout": 300000,
+    "max_concurrent_workflows": 100,
+    "health_check_interval": 30000
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "collectCoverage": true,
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov", "html"],
+    "testTimeout": 30000,
+    "setupFilesAfterEnv": ["<rootDir>/test/setup.js"]
+  },
+  "eslintConfig": {
+    "env": {
+      "node": true,
+      "es2022": true,
+      "jest": true
+    },
+    "extends": ["eslint:recommended"],
+    "parserOptions": {
+      "ecmaVersion": 2022,
+      "sourceType": "module"
+    },
+    "rules": {
+      "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+      "no-console": "off",
+      "prefer-const": "error",
+      "no-var": "error"
+    }
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/paestro"
+  }
+}

@@ -1,0 +1,130 @@
+name: send_coached_sms
+version: "1.0.0"
+description: "Send SMS to contact using coach's phone number with proper contact lookup"
+timeout: 180000  # 3 minutes
+maxRetries: 1
+compensationStrategy: reverse_order
+
+steps:
+  - name: validate_input
+    mcp: main-platform
+    action: validate_phone_number
+    params:
+      phone: $input.phone
+    timeout: 5000
+    retries: 0
+    critical: true
+    compensation:
+      action: log_validation_failure
+      params:
+        phone: $input.phone
+        reason: "validation_cancelled"
+
+  - name: get_contact
+    mcp: google-workspace
+    action: get_contact
+    params:
+      phone: $steps.validate_input.result.normalized_phone
+    timeout: 15000
+    retries: 2
+    critical: true
+    dependsOn: [validate_input]
+    compensation:
+      action: log_contact_lookup_failure
+      params:
+        phone: $steps.validate_input.result.normalized_phone
+        contact_id: $steps.get_contact.result.id
+
+  - name: get_coach_info
+    mcp: main-platform
+    action: get_coach
+    params:
+      coach_id: $input.coach_id
+    timeout: 10000
+    retries: 1
+    critical: true
+    parallel: true  # Can run in parallel with get_contact
+    compensation:
+      action: log_coach_lookup_failure
+      params:
+        coach_id: $input.coach_id
+
+  - name: check_permissions
+    mcp: main-platform
+    action: check_communication_permissions
+    params:
+      coach_id: $input.coach_id
+      contact_id: $steps.get_contact.result.id
+      communication_type: "sms"
+    timeout: 8000
+    retries: 1
+    critical: true
+    dependsOn: [get_contact, get_coach_info]
+    condition: $steps.get_contact.result.id && $steps.get_coach_info.result.id
+
+  - name: prepare_message
+    mcp: main-platform
+    action: process_message_template
+    params:
+      template: $input.message
+      coach_name: $steps.get_coach_info.result.first_name
+      contact_name: $steps.get_contact.result.first_name
+      organization: $steps.get_coach_info.result.organization.name
+    timeout: 5000
+    retries: 0
+    critical: true
+    dependsOn: [check_permissions]
+
+  - name: send_sms
+    mcp: textbee
+    action: send
+    params:
+      to: $steps.get_contact.result.phone
+      from: $steps.get_coach_info.result.phone
+      message: $steps.prepare_message.result.processed_message
+      callback_url: "${WEBHOOK_BASE_URL}/sms/delivery/${workflowId}"
+    timeout: 30000
+    retries: 3
+    critical: true
+    dependsOn: [prepare_message]
+    compensation:
+      action: send_cancellation_notice
+      params:
+        to: $steps.get_contact.result.phone
+        from: $steps.get_coach_info.result.phone
+        message: "Previous message cancelled. Please disregard."
+
+  - name: log_activity
+    mcp: main-platform
+    action: log_communication
+    params:
+      type: "sms"
+      coach_id: $input.coach_id
+      contact_id: $steps.get_contact.result.id
+      message_id: $steps.send_sms.result.message_id
+      status: "sent"
+      metadata:
+        workflow_id: $workflowId
+        original_message: $input.message
+        processed_message: $steps.prepare_message.result.processed_message
+        delivery_url: $steps.send_sms.result.delivery_url
+    timeout: 10000
+    retries: 2
+    critical: false  # Non-critical - don't fail workflow if logging fails
+    dependsOn: [send_sms]
+
+  - name: schedule_followup_check
+    mcp: main-platform
+    action: schedule_task
+    params:
+      task_type: "check_sms_delivery"
+      scheduled_for: "${new Date(Date.now() + 300000).toISOString()}"  # 5 minutes from now
+      data:
+        workflow_id: $workflowId
+        message_id: $steps.send_sms.result.message_id
+        contact_id: $steps.get_contact.result.id
+        coach_id: $input.coach_id
+    timeout: 5000
+    retries: 1
+    critical: false
+    dependsOn: [log_activity]
