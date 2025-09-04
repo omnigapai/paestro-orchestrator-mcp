@@ -73,8 +73,14 @@
       }
     },
     "textbee": {
+      "name": "textbee",
+      "version": "1.0.0",
       "url": "http://localhost:3004",
       "status": "failed",
+      "endpoints": {
+        "default": "http://localhost:3004"
+      },
+      "tools": ["send_sms", "send_mms", "bulk_message", "create_template"],
       "capabilities": [
         "sms",
         "mms",
@@ -98,8 +104,14 @@
       }
     },
     "stripe-payments": {
+      "name": "stripe-payments",
+      "version": "1.0.0",
       "url": "http://localhost:3005",
       "status": "failed",
+      "endpoints": {
+        "default": "http://localhost:3005"
+      },
+      "tools": ["process_payment", "create_subscription", "create_invoice", "manage_customer"],
       "capabilities": [
         "payments",
         "subscriptions",
@@ -123,8 +135,14 @@
       }
     },
     "ai-analysis": {
+      "name": "ai-analysis",
+      "version": "1.0.0",
       "url": "http://localhost:3006",
       "status": "failed",
+      "endpoints": {
+        "default": "http://localhost:3006"
+      },
+      "tools": ["analyze_video", "detect_pose", "calculate_metrics", "generate_insights"],
       "capabilities": [
         "video-analysis",
         "pose-detection",
@@ -148,8 +166,14 @@
       }
     },
     "tripadvisor": {
+      "name": "tripadvisor",
+      "version": "1.0.0",
       "url": "http://localhost:3007",
       "status": "active",
+      "endpoints": {
+        "default": "http://localhost:3007"
+      },
+      "tools": ["search_hotels", "get_reviews", "find_attractions", "search_restaurants"],
       "capabilities": [
         "hotels",
         "restaurants", 
