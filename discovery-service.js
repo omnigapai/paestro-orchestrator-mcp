@@ -139,22 +139,61 @@ class MCPDiscoveryService extends EventEmitter {
       throw new Error('Registry must have mcps object');
     }
     
+    // Count total MCPs for logging
+    const mcpCount = Object.keys(registry.mcps).length;
+    console.log(`🔍 Validating registry with ${mcpCount} MCP services...`);
+    
+    if (mcpCount === 0) {
+      console.warn('⚠️ Warning: Registry contains no MCP services');
+    }
+    
     // Validate each MCP
     for (const [name, mcp] of Object.entries(registry.mcps)) {
-      if (!mcp.name || !mcp.version) {
-        throw new Error(`MCP ${name} missing required name or version`);
+      // Log validation in debug mode only
+      if (process.env.NODE_ENV === 'development' || process.env.DEBUG_REGISTRY) {
+        console.log(`Validating MCP: ${name}`, {
+          hasName: !!mcp.name,
+          nameValue: mcp.name,
+          hasVersion: !!mcp.version,
+          versionValue: mcp.version,
+          mcpStructure: Object.keys(mcp)
+        });
       }
       
-      if (!mcp.endpoints || Object.keys(mcp.endpoints).length === 0) {
-        throw new Error(`MCP ${name} must have at least one endpoint`);
+      if (!mcp || typeof mcp !== 'object') {
+        throw new Error(`MCP ${name} is not a valid object`);
+      }
+      
+      if (!mcp.name || typeof mcp.name !== 'string') {
+        // Auto-fix missing name by using the key name as fallback
+        if (!mcp.name) {
+          console.warn(`⚠️ Auto-fixing missing name for MCP ${name}`);
+          mcp.name = name;
+        } else {
+          throw new Error(`MCP ${name} missing required name field (found: ${typeof mcp.name}: ${mcp.name})`);
+        }
+      }
+      
+      if (!mcp.version || typeof mcp.version !== 'string') {
+        // Auto-fix missing version with default
+        if (!mcp.version) {
+          console.warn(`⚠️ Auto-fixing missing version for MCP ${name}`);
+          mcp.version = '1.0.0';
+        } else {
+          throw new Error(`MCP ${name} missing required version field (found: ${typeof mcp.version}: ${mcp.version})`);
+        }
+      }
+      
+      if (!mcp.endpoints || typeof mcp.endpoints !== 'object' || Object.keys(mcp.endpoints).length === 0) {
+        throw new Error(`MCP ${name} must have at least one endpoint (found: ${typeof mcp.endpoints})`);
       }
       
       if (!Array.isArray(mcp.capabilities)) {
-        throw new Error(`MCP ${name} capabilities must be an array`);
+        throw new Error(`MCP ${name} capabilities must be an array (found: ${typeof mcp.capabilities})`);
       }
       
       if (!Array.isArray(mcp.tools)) {
-        throw new Error(`MCP ${name} tools must be an array`);
+        throw new Error(`MCP ${name} tools must be an array (found: ${typeof mcp.tools})`);
       }
     }
   }
