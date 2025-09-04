@@ -2,9 +2,9 @@
   "name": "@paestro/orchestrator-mcp",
   "version": "1.0.0",
   "description": "Production-ready MCP orchestration system with service discovery, circuit breakers, and saga pattern workflows",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node example-usage.js",
+    "start": "node server.js",
     "dev": "NODE_ENV=development node example-usage.js",
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "jest --testPathPattern=test/unit",
