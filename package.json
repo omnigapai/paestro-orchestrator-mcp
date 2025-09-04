@@ -55,8 +55,7 @@
     "@kubernetes/client-node": "^0.20.0"
   },
   "peerDependencies": {
-    "winston": "^3.11.0",
-    "prometheus-register": "^1.0.0"
+    "winston": "^3.11.0"
   },
   "repository": {
     "type": "git",
