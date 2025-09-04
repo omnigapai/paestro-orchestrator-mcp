@@ -67,7 +67,7 @@ class OrchestratorServer {
 
       // Health check endpoint
       if (pathname === '/health' && method === 'GET') {
-        const mcps = await this.discoveryService.listMCPs();
+        const mcps = this.discoveryService.getMcps();
         const health = {
           status: 'healthy',
           timestamp: new Date().toISOString(),
@@ -86,7 +86,7 @@ class OrchestratorServer {
 
       // MCP discovery endpoint
       if (pathname === '/api/mcps' && method === 'GET') {
-        const mcps = await this.discoveryService.listMCPs();
+        const mcps = this.discoveryService.getMcps();
         res.writeHead(200);
         res.end(JSON.stringify(mcps));
         return;
@@ -104,12 +104,13 @@ class OrchestratorServer {
         }
 
         // Find MCP for this capability
-        const mcp = await this.discoveryService.findMCPByCapability(capability);
+        const mcpsWithCapability = this.discoveryService.getMcpsByCapability(capability);
+        const mcp = mcpsWithCapability[0]; // Use first available MCP with this capability
         if (!mcp) {
           res.writeHead(404);
           res.end(JSON.stringify({ 
             error: `No MCP found for capability: ${capability}`,
-            availableCapabilities: await this.discoveryService.getAvailableCapabilities()
+            availableMCPs: Object.keys(this.discoveryService.getMcps())
           }));
           return;
         }
