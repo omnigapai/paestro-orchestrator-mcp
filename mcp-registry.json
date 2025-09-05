@@ -248,6 +248,15 @@
       "/api/calendar/**": [
         "calendar"
       ],
+      "/calendar/google/connect": [
+        "calendar"
+      ],
+      "/calendar/events": [
+        "calendar"
+      ],
+      "/calendar/google/**": [
+        "calendar"
+      ],
       "/api/contacts/**": [
         "contacts"
       ],
@@ -255,8 +264,12 @@
         "contacts"
       ],
       "/coach/**/google-oauth-status": [
-        "contacts",
-        "calendar"
+        "calendar",
+        "contacts"
+      ],
+      "/coach/.*/google-oauth-status": [
+        "calendar",
+        "contacts"
       ],
       "/api/video/**": [
         "video-analysis"

@@ -1,4 +1,5 @@
 const http = require('http');
+const { Server } = require('socket.io');
 const MCPDiscoveryService = require('./discovery-service');
 const { OrchestrationEngine } = require('./orchestration-engine');
 const path = require('path');
@@ -11,6 +12,7 @@ class OrchestratorServer {
     this.orchestrationEngine = null;
     this.logger = console;
     this.server = null;
+    this.io = null;
   }
 
   async initialize() {
@@ -92,6 +94,217 @@ class OrchestratorServer {
         return;
       }
 
+      // Google OAuth connection initiation
+      if (pathname === '/calendar/google/connect' && method === 'GET') {
+        const coachId = url.searchParams.get('coachId');
+        const redirectUri = url.searchParams.get('redirect_uri') || 'http://localhost:8080/calendar-integration';
+        
+        if (!coachId) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'coachId parameter is required' }));
+          return;
+        }
+
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            // Provide mock OAuth URL if Google Workspace MCP is not available
+            const mockOAuthUrl = `https://accounts.google.com/oauth2/authorize?client_id=mock&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/calendar&response_type=code&state=${coachId}`;
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              oauth_url: mockOAuthUrl,
+              status: 'mock_mode',
+              message: 'Google Workspace MCP not available, using mock response'
+            }));
+            return;
+          }
+
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            '/oauth/google/authorize',
+            'POST',
+            { coachId, redirect_uri: redirectUri },
+            req.headers
+          );
+          
+          // If MCP returns 404 or other error, fall back to mock mode
+          if (result.status === 404 || result.status >= 400) {
+            const mockOAuthUrl = `https://accounts.google.com/oauth2/authorize?client_id=mock&redirect_uri=${encodeURIComponent(redirectUri)}&scope=https://www.googleapis.com/auth/calendar&response_type=code&state=${coachId}`;
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              oauth_url: mockOAuthUrl,
+              status: 'mock_mode',
+              message: `Google Workspace MCP route not found (${result.status}), using mock response`,
+              mcp_response: result.data
+            }));
+            return;
+          }
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Google OAuth connect error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            error: 'Failed to initiate OAuth connection',
+            message: error.message 
+          }));
+        }
+        return;
+      }
+
+      // Check Google OAuth status for coach
+      if (pathname.match(/^\/coach\/[^/]+\/google-oauth-status$/) && method === 'GET') {
+        const coachId = pathname.split('/')[2];
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            // Provide mock status if Google Workspace MCP is not available
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              connected: false,
+              status: 'mock_mode',
+              last_sync: null,
+              scopes: [],
+              message: 'Google Workspace MCP not available, using mock response'
+            }));
+            return;
+          }
+
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/oauth/status/${coachId}`,
+            'GET',
+            null,
+            req.headers
+          );
+          
+          // If MCP returns 404 or other error, fall back to mock mode
+          if (result.status === 404 || result.status >= 400) {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              connected: false,
+              status: 'mock_mode',
+              last_sync: null,
+              scopes: [],
+              message: `Google Workspace MCP route not found (${result.status}), using mock response`,
+              mcp_response: result.data
+            }));
+            return;
+          }
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Google OAuth status error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            error: 'Failed to check OAuth status',
+            message: error.message 
+          }));
+        }
+        return;
+      }
+
+      // Get calendar events
+      if (pathname === '/calendar/events' && method === 'GET') {
+        const coachId = url.searchParams.get('coachId');
+        const startDate = url.searchParams.get('start_date');
+        const endDate = url.searchParams.get('end_date');
+        const maxResults = url.searchParams.get('max_results') || '50';
+        
+        if (!coachId) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'coachId parameter is required' }));
+          return;
+        }
+
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            // Provide mock calendar events if Google Workspace MCP is not available
+            const mockEvents = {
+              events: [
+                {
+                  id: 'mock-event-1',
+                  summary: 'Baseball Practice',
+                  start: { dateTime: new Date().toISOString() },
+                  end: { dateTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() },
+                  location: 'Local Baseball Field'
+                },
+                {
+                  id: 'mock-event-2', 
+                  summary: 'Team Meeting',
+                  start: { dateTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
+                  end: { dateTime: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString() },
+                  location: 'Coach Office'
+                }
+              ],
+              status: 'mock_mode',
+              message: 'Google Workspace MCP not available, using mock events'
+            };
+            res.writeHead(200);
+            res.end(JSON.stringify(mockEvents));
+            return;
+          }
+
+          const queryParams = new URLSearchParams({
+            coachId,
+            ...(startDate && { start_date: startDate }),
+            ...(endDate && { end_date: endDate }),
+            max_results: maxResults
+          });
+
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/calendar/events?${queryParams.toString()}`,
+            'GET',
+            null,
+            req.headers
+          );
+          
+          // If MCP returns 404 or other error, fall back to mock mode
+          if (result.status === 404 || result.status >= 400) {
+            const mockEvents = {
+              events: [
+                {
+                  id: 'mock-event-1',
+                  summary: 'Baseball Practice',
+                  start: { dateTime: new Date().toISOString() },
+                  end: { dateTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() },
+                  location: 'Local Baseball Field'
+                },
+                {
+                  id: 'mock-event-2', 
+                  summary: 'Team Meeting',
+                  start: { dateTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
+                  end: { dateTime: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString() },
+                  location: 'Coach Office'
+                }
+              ],
+              status: 'mock_mode',
+              message: `Google Workspace MCP route not found (${result.status}), using mock events`,
+              mcp_response: result.data
+            };
+            res.writeHead(200);
+            res.end(JSON.stringify(mockEvents));
+            return;
+          }
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Calendar events error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            error: 'Failed to fetch calendar events',
+            message: error.message 
+          }));
+        }
+        return;
+      }
+
       // Route to appropriate MCP based on path patterns
       if (pathname !== '/' && pathname !== '/health' && pathname !== '/api/mcps') {
         const body = await this.getRequestBody(req);
@@ -130,10 +343,26 @@ class OrchestratorServer {
           return;
         }
 
-        // Forward request to MCP
-        const result = await this.forwardToMCP(targetMcp, pathname, method, body, req.headers);
+        // Forward request to MCP with full URL (including query params)
+        const result = await this.forwardToMCP(targetMcp, req.url, method, body, req.headers);
+        
+        // Set response headers if provided
+        if (result.headers) {
+          Object.entries(result.headers).forEach(([key, value]) => {
+            if (!['content-length', 'transfer-encoding'].includes(key.toLowerCase())) {
+              res.setHeader(key, value);
+            }
+          });
+        }
+        
         res.writeHead(result.status || 200);
-        res.end(JSON.stringify(result.data));
+        
+        // Handle different response types
+        if (typeof result.data === 'string') {
+          res.end(result.data);
+        } else {
+          res.end(JSON.stringify(result.data));
+        }
         return;
       }
 
@@ -144,10 +373,21 @@ class OrchestratorServer {
           service: 'Paestro MCP Orchestrator',
           version: '1.0.0',
           status: 'running',
+          websocket: this.io ? 'enabled' : 'disabled',
           endpoints: {
             health: '/health',
             mcps: '/api/mcps',
-            api: '/api/*'
+            api: '/api/*',
+            google_oauth: '/calendar/google/connect?coachId={id}&redirect_uri={uri}',
+            oauth_status: '/coach/{coachId}/google-oauth-status', 
+            calendar_events: '/calendar/events?coachId={id}',
+            websocket: '/socket.io'
+          },
+          websocket_events: {
+            calendar_sync: 'calendar:sync',
+            oauth_status: 'oauth:status',
+            google_workspace: 'google-workspace',
+            calendar_request: 'calendar-request'
           }
         }));
         return;
@@ -182,47 +422,84 @@ class OrchestratorServer {
     });
   }
 
-  async forwardToMCP(mcp, pathname, method, body, headers) {
+  async forwardToMCP(mcp, fullUrl, method, body, headers) {
     const fetch = require('node-fetch');
     
     try {
-      const url = `${mcp.url}${pathname}`;
+      // Parse the original URL to preserve query parameters
+      const originalUrl = new URL(fullUrl, `http://localhost:${PORT}`);
+      const targetUrl = `${mcp.url}${originalUrl.pathname}${originalUrl.search}`;
+      
       const options = {
         method,
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': headers['x-api-key'] || process.env.MCP_API_KEY
-        }
+          'x-api-key': headers['x-api-key'] || process.env.MCP_API_KEY,
+          'user-agent': headers['user-agent'] || 'MCP-Orchestrator/1.0.0'
+        },
+        timeout: mcp.timeout || 30000
       };
 
       if (body && method !== 'GET') {
-        options.body = JSON.stringify(body);
+        options.body = typeof body === 'string' ? body : JSON.stringify(body);
       }
 
-      const response = await fetch(url, options);
-      const data = await response.json();
+      this.logger.info(`Forwarding ${method} ${targetUrl} to MCP ${mcp.name}`);
+      const response = await fetch(targetUrl, options);
+      
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
+      }
 
       return {
         status: response.status,
-        data
+        data,
+        headers: Object.fromEntries(response.headers)
       };
     } catch (error) {
       this.logger.error(`Failed to forward to MCP ${mcp.name}:`, error);
-      throw error;
+      return {
+        status: 500,
+        data: { 
+          error: 'MCP forwarding failed', 
+          message: error.message,
+          mcp: mcp.name 
+        }
+      };
     }
   }
 
   async start() {
     await this.initialize();
 
+    // Create HTTP server
     this.server = http.createServer((req, res) => {
       this.handleRequest(req, res);
+    });
+
+    // Create Socket.IO server
+    this.io = new Server(this.server, {
+      cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+      },
+      path: '/socket.io/'
+    });
+
+    // Handle Socket.IO connections
+    this.io.on('connection', (socket) => {
+      this.handleSocketConnection(socket);
     });
 
     this.server.listen(PORT, () => {
       this.logger.info(`✅ MCP Orchestrator Server running on port ${PORT}`);
       this.logger.info(`🌐 Health check: http://localhost:${PORT}/health`);
       this.logger.info(`🔍 MCP discovery: http://localhost:${PORT}/api/mcps`);
+      this.logger.info(`🔌 Socket.IO endpoint: http://localhost:${PORT}/socket.io/`);
     });
 
     // Graceful shutdown
@@ -230,13 +507,172 @@ class OrchestratorServer {
     process.on('SIGINT', () => this.shutdown());
   }
 
+  async handleSocketConnection(socket) {
+    this.logger.info(`🔌 Socket.IO connection established: ${socket.id}`);
+
+    // Handle Google Workspace events
+    socket.on('google-workspace', async (data, callback) => {
+      try {
+        this.logger.info('📨 Google Workspace request received:', data);
+        
+        const targetMcp = this.discoveryService.getMcp('google-workspace');
+        if (!targetMcp) {
+          const error = { error: 'Google Workspace MCP not available' };
+          if (callback) callback(error);
+          return;
+        }
+
+        // Forward to Google Workspace MCP via HTTP
+        if (data.endpoint) {
+          const result = await this.forwardToMCP(targetMcp, data.endpoint, data.method || 'GET', data.body, data.headers || {});
+          if (callback) callback(result);
+        } else {
+          const success = { success: true, message: 'Google Workspace MCP available' };
+          if (callback) callback(success);
+        }
+      } catch (error) {
+        this.logger.error('Google Workspace Socket.IO error:', error);
+        const errorResponse = { error: error.message };
+        if (callback) callback(errorResponse);
+      }
+    });
+
+    // Handle calendar events specifically
+    socket.on('calendar-request', async (data, callback) => {
+      try {
+        const targetMcp = this.discoveryService.getMcp('google-workspace');
+        if (!targetMcp) {
+          if (callback) callback({ error: 'Google Workspace MCP not available' });
+          return;
+        }
+
+        const endpoint = data.endpoint || '/calendar/events';
+        const result = await this.forwardToMCP(targetMcp, endpoint, data.method || 'GET', data.body, data.headers || {});
+        if (callback) callback(result);
+      } catch (error) {
+        this.logger.error('Calendar request error:', error);
+        if (callback) callback({ error: error.message });
+      }
+    });
+
+    // Handle calendar sync requests
+    socket.on('calendar:sync', async (data) => {
+      try {
+        const { coachId } = data;
+        if (!coachId) {
+          socket.emit('calendar:error', { error: 'coachId is required' });
+          return;
+        }
+
+        const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+        if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+          socket.emit('calendar:sync:response', {
+            status: 'mock_mode',
+            message: 'Google Workspace MCP not available',
+            events: []
+          });
+          return;
+        }
+
+        // Forward to Google Workspace MCP for calendar sync
+        const result = await this.forwardToMCP(
+          googleWorkspaceMcp,
+          `/calendar/sync`,
+          'POST',
+          { coachId },
+          { 'x-api-key': process.env.MCP_API_KEY }
+        );
+
+        // Handle MCP errors and fall back to mock mode
+        if (result.status === 404 || result.status >= 400) {
+          socket.emit('calendar:sync:response', {
+            status: 'mock_mode',
+            message: `Google Workspace MCP route not found (${result.status})`,
+            events: [],
+            mcp_response: result.data
+          });
+          return;
+        }
+
+        socket.emit('calendar:sync:response', result.data);
+      } catch (error) {
+        this.logger.error('Calendar sync error:', error);
+        socket.emit('calendar:error', { 
+          error: 'Calendar sync failed',
+          message: error.message 
+        });
+      }
+    });
+
+    // Handle OAuth status checks
+    socket.on('oauth:status', async (data) => {
+      try {
+        const { coachId } = data;
+        if (!coachId) {
+          socket.emit('oauth:error', { error: 'coachId is required' });
+          return;
+        }
+
+        const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+        if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+          socket.emit('oauth:status:response', {
+            connected: false,
+            status: 'mock_mode',
+            message: 'Google Workspace MCP not available'
+          });
+          return;
+        }
+
+        const result = await this.forwardToMCP(
+          googleWorkspaceMcp,
+          `/oauth/status/${coachId}`,
+          'GET',
+          null,
+          { 'x-api-key': process.env.MCP_API_KEY }
+        );
+
+        // Handle MCP errors and fall back to mock mode
+        if (result.status === 404 || result.status >= 400) {
+          socket.emit('oauth:status:response', {
+            connected: false,
+            status: 'mock_mode',
+            last_sync: null,
+            scopes: [],
+            message: `Google Workspace MCP route not found (${result.status})`,
+            mcp_response: result.data
+          });
+          return;
+        }
+
+        socket.emit('oauth:status:response', result.data);
+      } catch (error) {
+        this.logger.error('OAuth status check error:', error);
+        socket.emit('oauth:error', { 
+          error: 'OAuth status check failed',
+          message: error.message 
+        });
+      }
+    });
+
+    socket.on('disconnect', () => {
+      this.logger.info(`🔌 Socket.IO connection closed: ${socket.id}`);
+    });
+
+    socket.on('error', (error) => {
+      this.logger.error('Socket.IO error:', error);
+    });
+  }
+
   async shutdown() {
     this.logger.info('🛑 Shutting down server...');
+    if (this.io) {
+      this.io.close();
+    }
     if (this.server) {
       this.server.close();
     }
     if (this.discoveryService) {
-      await this.discoveryService.stop();
+      await this.discoveryService.shutdown();
     }
     process.exit(0);
   }

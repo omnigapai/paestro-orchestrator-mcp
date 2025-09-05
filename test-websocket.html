@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Orchestrator WebSocket Test</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Orchestrator WebSocket Test</h1>
+    <div id="status">Connecting...</div>
+    <button onclick="testGoogleWorkspace()">Test Google Workspace</button>
+    <button onclick="testCalendarRequest()">Test Calendar Request</button>
+    <div id="messages"></div>
+
+    <script>
+        const socket = io('http://localhost:3001');
+        const messages = document.getElementById('messages');
+        const status = document.getElementById('status');
+
+        socket.on('connect', () => {
+            status.textContent = 'Connected ✅';
+            addMessage('Connected to Orchestrator');
+        });
+
+        socket.on('disconnect', () => {
+            status.textContent = 'Disconnected ❌';
+            addMessage('Disconnected from Orchestrator');
+        });
+
+        function testGoogleWorkspace() {
+            addMessage('Testing Google Workspace...');
+            socket.emit('google-workspace', {
+                endpoint: '/calendar/google/connect?coachId=test123',
+                method: 'GET'
+            }, (response) => {
+                addMessage('Google Workspace Response: ' + JSON.stringify(response));
+            });
+        }
+
+        function testCalendarRequest() {
+            addMessage('Testing Calendar Request...');
+            socket.emit('calendar-request', {
+                endpoint: '/calendar/events?coachId=test123',
+                method: 'GET'
+            }, (response) => {
+                addMessage('Calendar Response: ' + JSON.stringify(response));
+            });
+        }
+
+        function addMessage(msg) {
+            const div = document.createElement('div');
+            div.textContent = new Date().toLocaleTimeString() + ': ' + msg;
+            messages.appendChild(div);
+        }
+    </script>
+</body>
+</html>
