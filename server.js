@@ -66,6 +66,16 @@ class OrchestratorServer {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const pathname = url.pathname;
       const method = req.method;
+      
+      // Enhanced request debugging
+      this.logger.info(`🌐 Incoming ${method} ${req.url}`);
+      this.logger.info(`   Pathname: ${pathname}`);
+      this.logger.info(`   Query params: ${url.search || '(none)'}`);
+      if (url.searchParams.size > 0) {
+        for (const [key, value] of url.searchParams) {
+          this.logger.info(`   - ${key}: ${value}`);
+        }
+      }
 
       // Health check endpoint
       if (pathname === '/health' && method === 'GET') {
@@ -94,7 +104,7 @@ class OrchestratorServer {
         return;
       }
 
-      // Google OAuth connection initiation
+      // Google OAuth connection initiation - Forward with original query parameters
       if (pathname === '/calendar/google/connect' && method === 'GET') {
         const coachId = url.searchParams.get('coachId');
         const redirectUri = url.searchParams.get('redirect_uri') || 'http://localhost:8080/calendar-integration';
@@ -119,11 +129,12 @@ class OrchestratorServer {
             return;
           }
 
+          // Forward the original request with full URL including query parameters
           const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            '/oauth/google/authorize',
-            'POST',
-            { coachId, redirect_uri: redirectUri },
+            req.url,  // Forward original URL with query parameters
+            method,   // Forward original method (GET)
+            null,     // No body for GET request
             req.headers
           );
           
@@ -223,29 +234,14 @@ class OrchestratorServer {
         try {
           const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
           if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
-            // Provide mock calendar events if Google Workspace MCP is not available
-            const mockEvents = {
-              events: [
-                {
-                  id: 'mock-event-1',
-                  summary: 'Baseball Practice',
-                  start: { dateTime: new Date().toISOString() },
-                  end: { dateTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() },
-                  location: 'Local Baseball Field'
-                },
-                {
-                  id: 'mock-event-2', 
-                  summary: 'Team Meeting',
-                  start: { dateTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
-                  end: { dateTime: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString() },
-                  location: 'Coach Office'
-                }
-              ],
-              status: 'mock_mode',
-              message: 'Google Workspace MCP not available, using mock events'
+            // Return empty events array if Google Workspace MCP is not available
+            const emptyResponse = {
+              events: [],
+              status: 'fallback_mode',
+              message: 'Google Workspace MCP not available, returning empty events'
             };
             res.writeHead(200);
-            res.end(JSON.stringify(mockEvents));
+            res.end(JSON.stringify(emptyResponse));
             return;
           }
 
@@ -264,31 +260,16 @@ class OrchestratorServer {
             req.headers
           );
           
-          // If MCP returns 404 or other error, fall back to mock mode
+          // If MCP returns 404 or other error, fall back to empty events
           if (result.status === 404 || result.status >= 400) {
-            const mockEvents = {
-              events: [
-                {
-                  id: 'mock-event-1',
-                  summary: 'Baseball Practice',
-                  start: { dateTime: new Date().toISOString() },
-                  end: { dateTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() },
-                  location: 'Local Baseball Field'
-                },
-                {
-                  id: 'mock-event-2', 
-                  summary: 'Team Meeting',
-                  start: { dateTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
-                  end: { dateTime: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString() },
-                  location: 'Coach Office'
-                }
-              ],
-              status: 'mock_mode',
-              message: `Google Workspace MCP route not found (${result.status}), using mock events`,
+            const emptyResponse = {
+              events: [],
+              status: 'fallback_mode',
+              message: `Google Workspace MCP route not found (${result.status}), returning empty events`,
               mcp_response: result.data
             };
             res.writeHead(200);
-            res.end(JSON.stringify(mockEvents));
+            res.end(JSON.stringify(emptyResponse));
             return;
           }
           
@@ -296,11 +277,15 @@ class OrchestratorServer {
           res.end(JSON.stringify(result.data));
         } catch (error) {
           this.logger.error('Calendar events error:', error);
-          res.writeHead(500);
-          res.end(JSON.stringify({ 
-            error: 'Failed to fetch calendar events',
-            message: error.message 
-          }));
+          // Fallback to empty events array on any error
+          const emptyResponse = {
+            events: [],
+            status: 'fallback_mode',
+            message: 'Google Workspace MCP connection failed, returning empty events',
+            error: error.message
+          };
+          res.writeHead(200);
+          res.end(JSON.stringify(emptyResponse));
         }
         return;
       }
@@ -426,9 +411,26 @@ class OrchestratorServer {
     const fetch = require('node-fetch');
     
     try {
-      // Parse the original URL to preserve query parameters
-      const originalUrl = new URL(fullUrl, `http://localhost:${PORT}`);
-      const targetUrl = `${mcp.url}${originalUrl.pathname}${originalUrl.search}`;
+      let targetUrl;
+      
+      // Handle different URL formats
+      if (fullUrl.startsWith('http://') || fullUrl.startsWith('https://')) {
+        // Full URL provided
+        const originalUrl = new URL(fullUrl);
+        targetUrl = `${mcp.url}${originalUrl.pathname}${originalUrl.search}`;
+      } else if (fullUrl.startsWith('/')) {
+        // Relative URL with potential query parameters
+        if (fullUrl.includes('?')) {
+          // URL has query parameters
+          targetUrl = `${mcp.url}${fullUrl}`;
+        } else {
+          // Simple path
+          targetUrl = `${mcp.url}${fullUrl}`;
+        }
+      } else {
+        // Just a path, construct full URL
+        targetUrl = `${mcp.url}/${fullUrl}`;
+      }
       
       const options = {
         method,
@@ -444,7 +446,7 @@ class OrchestratorServer {
         options.body = typeof body === 'string' ? body : JSON.stringify(body);
       }
 
-      this.logger.info(`Forwarding ${method} ${targetUrl} to MCP ${mcp.name}`);
+      this.logger.info(`🔄 Forwarding ${method} ${fullUrl} → ${targetUrl} to MCP ${mcp.name}`);
       const response = await fetch(targetUrl, options);
       
       let data;
@@ -455,13 +457,18 @@ class OrchestratorServer {
         data = await response.text();
       }
 
+      this.logger.info(`✅ MCP ${mcp.name} responded with status ${response.status}`);
+      if (response.status >= 400) {
+        this.logger.error(`❌ MCP ${mcp.name} error response:`, data);
+      }
+
       return {
         status: response.status,
         data,
         headers: Object.fromEntries(response.headers)
       };
     } catch (error) {
-      this.logger.error(`Failed to forward to MCP ${mcp.name}:`, error);
+      this.logger.error(`❌ Failed to forward to MCP ${mcp.name}:`, error);
       return {
         status: 500,
         data: { 
