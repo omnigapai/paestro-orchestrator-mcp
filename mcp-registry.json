@@ -271,6 +271,10 @@
         "calendar",
         "contacts"
       ],
+      "/oauth2callback": [
+        "calendar",
+        "contacts"
+      ],
       "/api/video/**": [
         "video-analysis"
       ],
