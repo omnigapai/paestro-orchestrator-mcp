@@ -43,10 +43,10 @@
     "google-workspace": {
       "name": "google-workspace",
       "version": "1.0.0",
-      "url": "https://paestro-google-workspace-mcp-production.up.railway.app",
+      "url": "https://googleworkspacemcp-production-6c89.up.railway.app",
       "status": "active",
       "endpoints": {
-        "default": "https://paestro-google-workspace-mcp-production.up.railway.app"
+        "default": "https://googleworkspacemcp-production-6c89.up.railway.app"
       },
       "tools": ["sync_contacts", "create_calendar_event", "send_email", "create_document"],
       "capabilities": [
