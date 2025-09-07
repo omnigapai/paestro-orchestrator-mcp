@@ -290,6 +290,56 @@ class OrchestratorServer {
         return;
       }
 
+      // OAuth token exchange endpoint - Handle authorization code exchange
+      if (pathname === '/oauth/exchange' && method === 'POST') {
+        const body = await this.getRequestBody(req);
+        const { code, coachId, coachEmail, state } = body;
+        
+        if (!code || !coachId) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Missing authorization code or coachId' 
+          }));
+          return;
+        }
+
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              error: 'Google Workspace MCP not available',
+              status: 'mock_mode'
+            }));
+            return;
+          }
+
+          // Forward the token exchange to Google Workspace MCP
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            '/oauth/exchange',
+            'POST',
+            { code, coachId, coachEmail, state },
+            req.headers
+          );
+          
+          // Return the result from the Google MCP
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('OAuth token exchange error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Failed to exchange OAuth token',
+            message: error.message 
+          }));
+        }
+        return;
+      }
+
       // Route to appropriate MCP based on path patterns
       if (pathname !== '/' && pathname !== '/health' && pathname !== '/api/mcps') {
         const body = await this.getRequestBody(req);
