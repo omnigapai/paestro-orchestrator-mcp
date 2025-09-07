@@ -50,7 +50,7 @@ class OrchestratorServer {
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key');
-      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+      res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
       res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
     };
 
@@ -353,15 +353,22 @@ class OrchestratorServer {
       // OAuth token exchange endpoint - Handle authorization code exchange
       if (pathname === '/oauth/exchange' && method === 'POST') {
         const body = await this.getRequestBody(req);
-        const { code, coachId, coachEmail, state, redirectUri } = body;
+        let { code, coachId, coachEmail, state, redirectUri } = body;
         
-        if (!code || !coachId) {
+        // Ensure we have an authorization code
+        if (!code) {
           res.writeHead(400);
           res.end(JSON.stringify({ 
             success: false,
-            error: 'Missing authorization code or coachId' 
+            error: 'Missing authorization code - cannot proceed with OAuth token exchange' 
           }));
           return;
+        }
+
+        // Provide default coachId if missing to prevent 400 errors
+        if (!coachId || coachId.trim() === '') {
+          coachId = 'default-coach';
+          this.logger.warn('No coachId provided in OAuth exchange, using default-coach');
         }
 
         try {
