@@ -185,7 +185,7 @@ class OrchestratorServer {
 
           const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            `/oauth/status/${coachId}`,
+            `/coach/${coachId}/google-oauth-status`,
             'GET',
             null,
             req.headers
