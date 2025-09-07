@@ -132,12 +132,21 @@ class OrchestratorServer {
           }
 
           // Forward to the Google MCP's oauth-url endpoint with query parameters
-          const queryParams = url.searchParams.toString();
+          // Convert coachId to coach_id for Google Workspace MCP compatibility
+          const newParams = new URLSearchParams();
+          for (const [key, value] of url.searchParams) {
+            if (key === 'coachId') {
+              newParams.set('coach_id', value);  // Convert coachId to coach_id
+            } else {
+              newParams.set(key, value);
+            }
+          }
+          const queryParams = newParams.toString();
           const oauthEndpoint = `/google/oauth-url${queryParams ? '?' + queryParams : ''}`;
           
           const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            oauthEndpoint,  // Include query parameters
+            oauthEndpoint,  // Include query parameters with coach_id
             method,   // Forward original method (GET)
             null,     // No body for GET request
             req.headers
