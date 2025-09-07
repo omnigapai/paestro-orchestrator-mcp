@@ -1,13 +1,13 @@
-const EventEmitter = require('events');
-const { spawn } = require('child_process');
+const EventEmitter = require("events");
+const { spawn } = require("child_process");
 
 /**
  * Circuit Breaker States
  */
 const CircuitBreakerState = {
-  CLOSED: 'CLOSED',     // Normal operation
-  OPEN: 'OPEN',         // Failing, reject requests
-  HALF_OPEN: 'HALF_OPEN' // Testing if service recovered
+  CLOSED: "CLOSED",     // Normal operation
+  OPEN: "OPEN",         // Failing, reject requests
+  HALF_OPEN: "HALF_OPEN" // Testing if service recovered
 };
 
 /**
@@ -51,12 +51,12 @@ class CircuitBreaker extends EventEmitter {
     
     if (this.state === CircuitBreakerState.OPEN) {
       if (Date.now() < this.nextAttempt) {
-        const error = new Error('Circuit breaker is OPEN');
-        error.code = 'CIRCUIT_BREAKER_OPEN';
+        const error = new Error("Circuit breaker is OPEN");
+        error.code = "CIRCUIT_BREAKER_OPEN";
         throw error;
       } else {
         this.state = CircuitBreakerState.HALF_OPEN;
-        this.emit('state_change', this.state);
+        this.emit("state_change", this.state);
         this.metrics.stateChanges++;
       }
     }
@@ -81,7 +81,7 @@ class CircuitBreaker extends EventEmitter {
     if (this.state === CircuitBreakerState.HALF_OPEN) {
       this.state = CircuitBreakerState.CLOSED;
       this.failures = 0;
-      this.emit('state_change', this.state);
+      this.emit("state_change", this.state);
       this.metrics.stateChanges++;
     }
   }
@@ -97,7 +97,7 @@ class CircuitBreaker extends EventEmitter {
     if (this.failures >= this.options.failureThreshold) {
       this.state = CircuitBreakerState.OPEN;
       this.nextAttempt = Date.now() + this.options.resetTimeout;
-      this.emit('state_change', this.state);
+      this.emit("state_change", this.state);
       this.metrics.stateChanges++;
     }
   }
@@ -122,7 +122,7 @@ class CircuitBreaker extends EventEmitter {
   trip() {
     this.state = CircuitBreakerState.OPEN;
     this.nextAttempt = Date.now() + this.options.resetTimeout;
-    this.emit('state_change', this.state);
+    this.emit("state_change", this.state);
     this.metrics.stateChanges++;
   }
 
@@ -135,7 +135,7 @@ class CircuitBreaker extends EventEmitter {
     this.successes = 0;
     this.lastFailureTime = null;
     this.nextAttempt = null;
-    this.emit('state_change', this.state);
+    this.emit("state_change", this.state);
     this.metrics.stateChanges++;
   }
 
@@ -178,7 +178,7 @@ class ConnectionPool extends EventEmitter {
     // Try to get an available connection
     if (this.availableConnections.length > 0) {
       const connection = this.availableConnections.pop();
-      this.emit('connection_acquired', connection);
+      this.emit("connection_acquired", connection);
       return connection;
     }
     
@@ -195,7 +195,7 @@ class ConnectionPool extends EventEmitter {
         if (index >= 0) {
           this.pendingAcquires.splice(index, 1);
         }
-        reject(new Error('Acquire timeout'));
+        reject(new Error("Acquire timeout"));
       }, this.options.acquireTimeout);
       
       const acquire = { resolve, reject, timeout };
@@ -216,14 +216,14 @@ class ConnectionPool extends EventEmitter {
       const acquire = this.pendingAcquires.shift();
       clearTimeout(acquire.timeout);
       acquire.resolve(connection);
-      this.emit('connection_acquired', connection);
+      this.emit("connection_acquired", connection);
       return;
     }
     
     // Add to available connections
     connection.lastUsed = Date.now();
     this.availableConnections.push(connection);
-    this.emit('connection_released', connection);
+    this.emit("connection_released", connection);
   }
 
   /**
@@ -236,7 +236,7 @@ class ConnectionPool extends EventEmitter {
     connection.lastUsed = Date.now();
     
     this.connections.add(connection);
-    this.emit('connection_created', connection);
+    this.emit("connection_created", connection);
     return connection;
   }
 
@@ -256,7 +256,7 @@ class ConnectionPool extends EventEmitter {
     }
     
     this.totalDestroyed++;
-    this.emit('connection_destroyed', connection);
+    this.emit("connection_destroyed", connection);
   }
 
   /**
@@ -296,7 +296,7 @@ class ConnectionPool extends EventEmitter {
     // Reject pending acquires
     for (const acquire of this.pendingAcquires) {
       clearTimeout(acquire.timeout);
-      acquire.reject(new Error('Pool destroyed'));
+      acquire.reject(new Error("Pool destroyed"));
     }
     this.pendingAcquires = [];
   }
@@ -325,8 +325,8 @@ class MCPClient extends EventEmitter {
     
     // Circuit breaker
     this.circuitBreaker = new CircuitBreaker(mcpConfig.circuitBreaker || {});
-    this.circuitBreaker.on('state_change', (state) => {
-      this.emit('circuit_breaker_state_change', state);
+    this.circuitBreaker.on("state_change", (state) => {
+      this.emit("circuit_breaker_state_change", state);
       this.logger.info(`Circuit breaker state changed to ${state} for MCP ${mcpConfig.name}`);
     });
     
@@ -380,9 +380,9 @@ class MCPClient extends EventEmitter {
   async createConnection() {
     const endpoint = this.mcpConfig.endpoints.primary;
     
-    if (endpoint.protocol === 'stdio') {
+    if (endpoint.protocol === "stdio") {
       return await this.createStdioConnection(endpoint);
-    } else if (endpoint.protocol === 'http') {
+    } else if (endpoint.protocol === "http") {
       return await this.createHttpConnection(endpoint);
     } else {
       throw new Error(`Unsupported protocol: ${endpoint.protocol}`);
@@ -395,7 +395,7 @@ class MCPClient extends EventEmitter {
   async createStdioConnection(endpoint) {
     return new Promise((resolve, reject) => {
       const process = spawn(endpoint.command, endpoint.args || [], {
-        stdio: ['pipe', 'pipe', 'pipe']
+        stdio: ["pipe", "pipe", "pipe"]
       });
       
       let initialized = false;
@@ -404,7 +404,7 @@ class MCPClient extends EventEmitter {
       let requestId = 0;
       
       const connection = {
-        type: 'stdio',
+        type: "stdio",
         process,
         send: async (message) => {
           const id = ++requestId;
@@ -418,11 +418,11 @@ class MCPClient extends EventEmitter {
           return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
               pendingRequests.delete(id);
-              reject(new Error('Request timeout'));
+              reject(new Error("Request timeout"));
             }, this.options.timeout);
             
             pendingRequests.set(id, { resolve, reject, timeout });
-            process.stdin.write(JSON.stringify(request) + '\n');
+            process.stdin.write(JSON.stringify(request) + "\n");
           });
         },
         destroy: async () => {
@@ -431,11 +431,11 @@ class MCPClient extends EventEmitter {
       };
       
       // Handle stdout (responses)
-      let buffer = '';
-      process.stdout.on('data', async (data) => {
+      let buffer = "";
+      process.stdout.on("data", async (data) => {
         buffer += data.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
         
         for (const line of lines) {
           if (line.trim()) {
@@ -453,39 +453,39 @@ class MCPClient extends EventEmitter {
                 }
                 
                 if (response.error) {
-                  pending.reject(new Error(response.error.message || 'MCP Error'));
+                  pending.reject(new Error(response.error.message || "MCP Error"));
                 } else {
                   pending.resolve(response.result);
                 }
               }
             } catch (error) {
-              this.logger.warn('Failed to parse MCP response:', error);
+              this.logger.warn("Failed to parse MCP response:", error);
             }
           }
         }
       });
       
       // Handle stderr (logs)
-      process.stderr.on('data', (data) => {
+      process.stderr.on("data", (data) => {
         this.logger.debug(`MCP ${this.mcpConfig.name} stderr:`, data.toString());
       });
       
       // Handle process events
-      process.on('error', (error) => {
+      process.on("error", (error) => {
         if (!initialized) {
           reject(error);
         } else {
-          this.emit('connection_error', error);
+          this.emit("connection_error", error);
         }
       });
       
-      process.on('exit', (code) => {
-        this.emit('connection_closed', code);
+      process.on("exit", (code) => {
+        this.emit("connection_closed", code);
         
         // Reject all pending requests
         for (const pending of pendingRequests.values()) {
           clearTimeout(pending.timeout);
-          pending.reject(new Error('Connection closed'));
+          pending.reject(new Error("Connection closed"));
         }
         pendingRequests.clear();
       });
@@ -494,14 +494,14 @@ class MCPClient extends EventEmitter {
       setTimeout(async () => {
         try {
           await connection.send({
-            jsonrpc: '2.0',
-            method: 'initialize',
+            jsonrpc: "2.0",
+            method: "initialize",
             params: {
-              protocolVersion: '2024-11-05',
+              protocolVersion: "2024-11-05",
               capabilities: {},
               clientInfo: {
-                name: 'orchestrator-mcp',
-                version: '1.0.0'
+                name: "orchestrator-mcp",
+                version: "1.0.0"
               }
             }
           });
@@ -519,10 +519,10 @@ class MCPClient extends EventEmitter {
    * Create HTTP-based connection
    */
   async createHttpConnection(endpoint) {
-    const fetch = require('node-fetch');
+    const fetch = require("node-fetch");
     
     const connection = {
-      type: 'http',
+      type: "http",
       baseUrl: endpoint.url,
       headers: endpoint.headers || {},
       send: async (message) => {
@@ -532,9 +532,9 @@ class MCPClient extends EventEmitter {
         }
         
         const response = await fetch(`${endpoint.url}/mcp`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
             ...connection.headers
           },
           body: JSON.stringify(message),
@@ -553,13 +553,13 @@ class MCPClient extends EventEmitter {
         }
         
         if (result.error) {
-          throw new Error(result.error.message || 'MCP Error');
+          throw new Error(result.error.message || "MCP Error");
         }
         
         return result.result;
       },
       destroy: async () => {
-        // HTTP connections don't need explicit cleanup
+        // HTTP connections don"t need explicit cleanup
       }
     };
     
@@ -579,8 +579,8 @@ class MCPClient extends EventEmitter {
       
       try {
         const result = await connection.send({
-          jsonrpc: '2.0',
-          method: 'tools/call',
+          jsonrpc: "2.0",
+          method: "tools/call",
           params: {
             name: toolName,
             arguments: parameters
@@ -606,12 +606,12 @@ class MCPClient extends EventEmitter {
       this.metrics.totalLatency += latency;
       this.metrics.avgLatency = this.metrics.totalLatency / this.metrics.successes;
       
-      this.emit('tool_call_success', toolName, parameters, result);
+      this.emit("tool_call_success", toolName, parameters, result);
       return result;
       
     } catch (error) {
       this.metrics.failures++;
-      this.emit('tool_call_error', toolName, parameters, error);
+      this.emit("tool_call_error", toolName, parameters, error);
       throw error;
     }
   }
@@ -657,23 +657,23 @@ class MCPClient extends EventEmitter {
    */
   isRetryableError(error) {
     // Network errors are retryable
-    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+    if (error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT") {
       return true;
     }
     
     // HTTP 5xx errors are retryable
-    if (error.message.includes('HTTP 5')) {
+    if (error.message.includes("HTTP 5")) {
       return true;
     }
     
     // Timeout errors are retryable
-    if (error.message.includes('timeout')) {
+    if (error.message.includes("timeout")) {
       this.metrics.timeouts++;
       return true;
     }
     
     // Circuit breaker open is not retryable immediately
-    if (error.code === 'CIRCUIT_BREAKER_OPEN') {
+    if (error.code === "CIRCUIT_BREAKER_OPEN") {
       return false;
     }
     
@@ -691,7 +691,7 @@ class MCPClient extends EventEmitter {
    * List available tools
    */
   async listTools() {
-    return await this.callTool('list_tools');
+    return await this.callTool("list_tools");
   }
 
   /**
@@ -748,7 +748,7 @@ class MCPClient extends EventEmitter {
     // Destroy connection pool
     await this.connectionPool.destroy();
     
-    this.emit('shutdown');
+    this.emit("shutdown");
     this.logger.info(`MCP client for ${this.mcpConfig.name} shut down`);
   }
 }

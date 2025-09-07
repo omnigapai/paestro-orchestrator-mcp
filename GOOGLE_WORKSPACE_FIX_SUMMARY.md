@@ -56,9 +56,9 @@ async forwardToMCP(mcp, fullUrl, method, body, headers) {
   const options = {
     method,
     headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': headers['x-api-key'] || process.env.MCP_API_KEY,
-      'user-agent': headers['user-agent'] || 'MCP-Orchestrator/1.0.0'
+      "Content-Type": "application/json",
+      "x-api-key": headers["x-api-key"] || process.env.MCP_API_KEY,
+      "user-agent": headers["user-agent"] || "MCP-Orchestrator/1.0.0"
     },
     timeout: mcp.timeout || 30000
   };
@@ -69,11 +69,11 @@ async forwardToMCP(mcp, fullUrl, method, body, headers) {
 ```javascript
 this.io = new Server(this.server, {
   cors: { origin: "*", methods: ["GET", "POST"] },
-  path: '/socket.io/'
+  path: "/socket.io/"
 });
 
-this.io.on('connection', (socket) => {
-  socket.on('google-workspace', async (data, callback) => {
+this.io.on("connection", (socket) => {
+  socket.on("google-workspace", async (data, callback) => {
     const result = await this.forwardToMCP(targetMcp, data.endpoint, data.method, data.body, data.headers);
     if (callback) callback(result);
   });
@@ -116,7 +116,7 @@ this.io.on('connection', (socket) => {
 
 1. **Verify Google Workspace MCP Deployment** at `https://paestro-google-workspace-mcp-production.up.railway.app`
 2. **Update MCP URL** in registry if deployed elsewhere
-3. **Test with Live Google Workspace MCP** once it's accessible
+3. **Test with Live Google Workspace MCP** once it"s accessible
 4. **Deploy Orchestrator** to production environment
 
 ## Configuration Files
@@ -150,4 +150,4 @@ npm start
 4. ✅ Supports WebSocket connections via Socket.IO
 5. ✅ Forwards complete URLs with query parameters to target MCPs
 
-**The remaining issue is that the Google Workspace MCP itself is not responding (404 errors), which is outside the Orchestrator's responsibility.**
+**The remaining issue is that the Google Workspace MCP itself is not responding (404 errors), which is outside the Orchestrator"s responsibility.**

@@ -1,6 +1,6 @@
 name: send_coached_sms
 version: "1.0.0"
-description: "Send SMS to contact using coach's phone number with proper contact lookup"
+description: "Send SMS to contact using coach"s phone number with proper contact lookup"
 timeout: 180000  # 3 minutes
 maxRetries: 1
 compensationStrategy: reverse_order
@@ -110,7 +110,7 @@ steps:
         delivery_url: $steps.send_sms.result.delivery_url
     timeout: 10000
     retries: 2
-    critical: false  # Non-critical - don't fail workflow if logging fails
+    critical: false  # Non-critical - don"t fail workflow if logging fails
     dependsOn: [send_sms]
 
   - name: schedule_followup_check

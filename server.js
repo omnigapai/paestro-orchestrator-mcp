@@ -351,7 +351,7 @@ class OrchestratorServer {
       // OAuth token exchange endpoint - Handle authorization code exchange
       if (pathname === '/oauth/exchange' && method === 'POST') {
         const body = await this.getRequestBody(req);
-        const { code, coachId, coachEmail, state } = body;
+        const { code, coachId, coachEmail, state, redirectUri } = body;
         
         if (!code || !coachId) {
           res.writeHead(400);
@@ -374,12 +374,12 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward the token exchange to Google Workspace MCP
+          // Forward the token exchange to Google Workspace MCP with ALL parameters
           const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
             '/oauth/exchange',
             'POST',
-            { code, coachId, coachEmail, state },
+            { code, coachId, coachEmail, state, redirectUri: redirectUri || 'http://localhost:8080/oauth-callback' },
             req.headers
           );
           
