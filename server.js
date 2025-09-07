@@ -131,10 +131,13 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward to the Google MCP's oauth-url endpoint instead of the calendar/google/connect path
+          // Forward to the Google MCP's oauth-url endpoint with query parameters
+          const queryParams = url.searchParams.toString();
+          const oauthEndpoint = `/google/oauth-url${queryParams ? '?' + queryParams : ''}`;
+          
           const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            '/google/oauth-url',  // Use Google MCP's actual endpoint
+            oauthEndpoint,  // Include query parameters
             method,   // Forward original method (GET)
             null,     // No body for GET request
             req.headers
