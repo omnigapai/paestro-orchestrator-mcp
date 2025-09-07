@@ -218,6 +218,64 @@ class OrchestratorServer {
         return;
       }
 
+      // Get Google Contacts for coach
+      if (pathname.match(/^\/coach\/[^/]+\/google-contacts$/) && method === 'GET') {
+        const coachId = pathname.split('/')[2];
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            // Provide mock contacts if Google Workspace MCP is not available
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: true,
+              contacts: [],
+              total: 0,
+              coach_id: coachId,
+              message: 'Google Workspace MCP not available, returning empty contacts'
+            }));
+            return;
+          }
+
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/coach/${coachId}/google-contacts`,
+            'GET',
+            null,
+            req.headers
+          );
+          
+          // If MCP returns 404 or other error, return empty contacts
+          if (result.status === 404 || result.status >= 400) {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              contacts: [],
+              total: 0,
+              coach_id: coachId,
+              message: `Google Contacts not available (${result.status})`,
+              error: result.data
+            }));
+            return;
+          }
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Google Contacts error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Failed to fetch Google Contacts',
+            details: error.message,
+            contacts: [],
+            total: 0,
+            coach_id: coachId
+          }));
+        }
+        return;
+      }
+
       // Get calendar events
       if (pathname === '/calendar/events' && method === 'GET') {
         const coachId = url.searchParams.get('coachId');
