@@ -395,50 +395,36 @@ class OrchestratorServer {
             return;
           }
 
-          // Step 1: Exchange code for tokens with Google Workspace MCP
+          // ENTERPRISE PATTERN: Orchestrator only coordinates, doesn't proxy storage
+          // Google Workspace MCP will handle token storage directly with Main MCP
+          
+          this.logger.info('Routing OAuth exchange to Google Workspace MCP (enterprise pattern)');
+          
+          // Forward to Google Workspace MCP - it will handle everything including storage
           const tokenResult = await this.forwardToMCP(
             googleWorkspaceMcp, 
             '/oauth/exchange',
             'POST',
-            { code, coachId, coachEmail, state, redirectUri: redirectUri || 'http://localhost:8080/oauth-callback' },
+            { 
+              code, 
+              coachId, 
+              coachEmail, 
+              state, 
+              redirectUri: redirectUri || 'http://localhost:8080/oauth-callback',
+              // Signal to Google MCP that it should store tokens directly
+              directStorage: true 
+            },
             req.headers
           );
           
-          // Step 2: If we got tokens, store them in Main MCP's Supabase
-          if (tokenResult.data?.success && tokenResult.data?.data?.access_token) {
-            this.logger.info('Got tokens from Google Workspace MCP, storing in Main MCP Supabase');
-            
-            const mainPlatformMcp = this.discoveryService.getMcp('main-platform');
-            if (mainPlatformMcp && mainPlatformMcp.status === 'active') {
-              try {
-                // The Main MCP's /google/oauth/exchange endpoint has the proper Supabase upsert
-                const storageResult = await this.forwardToMCP(
-                  mainPlatformMcp,
-                  '/google/oauth/exchange',
-                  'POST',
-                  {
-                    code: code, // Pass original code
-                    redirectUri: redirectUri || 'http://localhost:8080/oauth-callback',
-                    coachId: coachId,
-                    coachEmail: coachEmail
-                  },
-                  req.headers
-                );
-                
-                this.logger.info('Token storage in Supabase completed:', storageResult.data?.success);
-                
-                // Return the original token result (with tokens) regardless of storage
-                res.writeHead(tokenResult.status || 200);
-                res.end(JSON.stringify({
-                  ...tokenResult.data,
-                  storage: storageResult.data?.success ? 'stored' : 'not_stored'
-                }));
-                return;
-              } catch (storageError) {
-                this.logger.error('Failed to store tokens in Supabase:', storageError);
-                // Still return tokens even if storage failed
-              }
-            }
+          // Log the result for monitoring
+          if (tokenResult.data?.success) {
+            this.logger.info('OAuth flow completed successfully via service mesh pattern', {
+              coachId: coachId?.substring(0, 8) + '...',
+              storage: tokenResult.data?.storage || 'unknown'
+            });
+          } else {
+            this.logger.error('OAuth flow failed', tokenResult.data?.error);
           }
           
           // Return the result from the Google MCP
