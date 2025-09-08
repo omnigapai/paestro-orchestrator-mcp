@@ -395,8 +395,8 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward the token exchange to Google Workspace MCP with ALL parameters
-          const result = await this.forwardToMCP(
+          // Step 1: Exchange code for tokens with Google Workspace MCP
+          const tokenResult = await this.forwardToMCP(
             googleWorkspaceMcp, 
             '/oauth/exchange',
             'POST',
@@ -404,9 +404,46 @@ class OrchestratorServer {
             req.headers
           );
           
+          // Step 2: If we got tokens, store them in Main MCP's Supabase
+          if (tokenResult.data?.success && tokenResult.data?.data?.access_token) {
+            this.logger.info('Got tokens from Google Workspace MCP, storing in Main MCP Supabase');
+            
+            const mainPlatformMcp = this.discoveryService.getMcp('main-platform');
+            if (mainPlatformMcp && mainPlatformMcp.status === 'active') {
+              try {
+                // The Main MCP's /google/oauth/exchange endpoint has the proper Supabase upsert
+                const storageResult = await this.forwardToMCP(
+                  mainPlatformMcp,
+                  '/google/oauth/exchange',
+                  'POST',
+                  {
+                    code: code, // Pass original code
+                    redirectUri: redirectUri || 'http://localhost:8080/oauth-callback',
+                    coachId: coachId,
+                    coachEmail: coachEmail
+                  },
+                  req.headers
+                );
+                
+                this.logger.info('Token storage in Supabase completed:', storageResult.data?.success);
+                
+                // Return the original token result (with tokens) regardless of storage
+                res.writeHead(tokenResult.status || 200);
+                res.end(JSON.stringify({
+                  ...tokenResult.data,
+                  storage: storageResult.data?.success ? 'stored' : 'not_stored'
+                }));
+                return;
+              } catch (storageError) {
+                this.logger.error('Failed to store tokens in Supabase:', storageError);
+                // Still return tokens even if storage failed
+              }
+            }
+          }
+          
           // Return the result from the Google MCP
-          res.writeHead(result.status || 200);
-          res.end(JSON.stringify(result.data));
+          res.writeHead(tokenResult.status || 200);
+          res.end(JSON.stringify(tokenResult.data));
         } catch (error) {
           this.logger.error('OAuth token exchange error:', error);
           res.writeHead(500);
