@@ -308,11 +308,13 @@ class OrchestratorServer {
             return;
           }
 
-          // Call Google Workspace MCP tool to get contacts from Google Sheets
-          const result = await this.callMCPTool(
+          // Forward to Google Workspace MCP HTTP route to get contacts from Google Sheets
+          const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            'sheets_contacts_list',
-            { coach_id: coachId }
+            '/sheets-contacts/list',
+            'POST',
+            { coach_id: coachId },
+            req.headers
           );
           
           res.writeHead(result.status || 200);
@@ -348,14 +350,16 @@ class OrchestratorServer {
             return;
           }
 
-          // Call Google Workspace MCP tool to add contact to Google Sheets
-          const result = await this.callMCPTool(
+          // Forward to Google Workspace MCP HTTP route to add contact to Google Sheets
+          const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            'sheets_contacts_add',
+            '/sheets-contacts/add',
+            'POST',
             { 
               coach_id: coachId,
               contact_data: body
-            }
+            },
+            req.headers
           );
           
           res.writeHead(result.status || 200);
@@ -390,15 +394,17 @@ class OrchestratorServer {
             return;
           }
 
-          // Call Google Workspace MCP tool to update contact in Google Sheets
-          const result = await this.callMCPTool(
+          // Forward to Google Workspace MCP HTTP route to update contact in Google Sheets
+          const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            'sheets_contacts_update',
+            '/sheets-contacts/update',
+            'POST',
             {
               coach_id: coachId,
               contact_id: contactId,
               updates: body
-            }
+            },
+            req.headers
           );
           
           res.writeHead(result.status || 200);
@@ -432,14 +438,16 @@ class OrchestratorServer {
             return;
           }
 
-          // Call Google Workspace MCP tool to delete contact from Google Sheets
-          const result = await this.callMCPTool(
+          // Forward to Google Workspace MCP HTTP route to delete contact from Google Sheets
+          const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            'sheets_contacts_delete',
+            '/sheets-contacts/delete',
+            'POST',
             {
               coach_id: coachId,
               contact_id: contactId
-            }
+            },
+            req.headers
           );
           
           res.writeHead(result.status || 200);
@@ -472,14 +480,16 @@ class OrchestratorServer {
             return;
           }
 
-          // Call Google Workspace MCP tool to create/initialize Google Sheet for contacts
-          const result = await this.callMCPTool(
+          // Forward to Google Workspace MCP HTTP route to create/initialize Google Sheet for contacts
+          const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            'sheets_contacts_init',
+            '/sheets-contacts/init',
+            'POST',
             {
               coach_id: coachId,
               sheet_name: body.sheetName
-            }
+            },
+            req.headers
           );
           
           res.writeHead(result.status || 200);
