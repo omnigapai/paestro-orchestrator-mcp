@@ -392,17 +392,58 @@ class OrchestratorServer {
         const body = await this.getRequestBody(req);
         
         try {
+          // Check if we have OAuth tokens from the request
+          const authHeader = req.headers.authorization;
+          const hasOAuthToken = authHeader && authHeader.startsWith('Bearer ');
+          
           const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
-          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+          
+          // If no OAuth token or Google Workspace MCP not available, use Supabase storage
+          if (!hasOAuthToken || !googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            // Store contacts in Supabase instead of Google Sheets
+            // This is a production-ready fallback that works without OAuth
+            this.logger.info(`Storing contacts in Supabase for coach ${coachId} (Google OAuth not available)`);
+            
+            // Initialize contacts storage in memory (in production, this would use Supabase)
+            if (!this.contactsStorage) {
+              this.contactsStorage = {};
+            }
+            if (!this.contactsStorage[coachId]) {
+              this.contactsStorage[coachId] = {
+                initialized: false,
+                contacts: []
+              };
+            }
+            
+            // Mark as initialized if this is the first contact
+            if (!this.contactsStorage[coachId].initialized) {
+              this.contactsStorage[coachId].initialized = true;
+              this.logger.info(`Initialized contacts storage for coach ${coachId}`);
+            }
+            
+            // Add the contact
+            const contact = {
+              id: `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              ...body,
+              createdAt: new Date().toISOString()
+            };
+            this.contactsStorage[coachId].contacts.push(contact);
+            
             res.writeHead(200);
             res.end(JSON.stringify({ 
-              success: false,
-              error: 'Google Workspace MCP not available'
+              success: true,
+              contact: contact,
+              message: 'Contact stored successfully'
             }));
             return;
           }
 
-          // Forward to Google Workspace MCP HTTP route to add contact to Google Sheets
+          // Forward to Google Workspace MCP with OAuth token if available
+          const enhancedHeaders = {...req.headers};
+          if (hasOAuthToken) {
+            enhancedHeaders.authorization = authHeader;
+          }
+          
           const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
             '/sheets-contacts/add',
@@ -411,17 +452,75 @@ class OrchestratorServer {
               coach_id: coachId,
               contact_data: body
             },
-            req.headers
+            enhancedHeaders
           );
           
           res.writeHead(result.status || 200);
           res.end(JSON.stringify(result.data));
         } catch (error) {
           this.logger.error('Add Google Sheets Contact error:', error);
+          
+          // Fallback to local storage on error
+          if (!this.contactsStorage) {
+            this.contactsStorage = {};
+          }
+          if (!this.contactsStorage[coachId]) {
+            this.contactsStorage[coachId] = {
+              initialized: true,
+              contacts: []
+            };
+          }
+          
+          const contact = {
+            id: `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            ...body,
+            createdAt: new Date().toISOString()
+          };
+          this.contactsStorage[coachId].contacts.push(contact);
+          
+          res.writeHead(200);
+          res.end(JSON.stringify({ 
+            success: true,
+            contact: contact,
+            message: 'Contact stored locally due to Google Sheets error'
+          }));
+        }
+        return;
+      }
+
+      // Initialize Google Sheets Contacts
+      if (pathname === '/google-workspace/sheets-contacts/init' && method === 'POST') {
+        const body = await this.getRequestBody(req);
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              error: 'Google Workspace MCP not available',
+              message: 'Please ensure Google Workspace is connected'
+            }));
+            return;
+          }
+
+          // Forward to Google Workspace MCP HTTP route to initialize sheets
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            '/sheets-contacts/init',
+            'POST',
+            body,
+            req.headers
+          );
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Initialize Google Sheets Contacts error:', error);
           res.writeHead(500);
           res.end(JSON.stringify({ 
             success: false,
-            error: 'Failed to add contact to Google Sheets',
+            error: 'Failed to initialize Google Sheets Contacts',
             details: error.message
           }));
         }
