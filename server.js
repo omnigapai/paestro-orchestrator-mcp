@@ -308,13 +308,11 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward to Google Workspace MCP to get contacts from Google Sheets
-          const result = await this.forwardToMCP(
+          // Call Google Workspace MCP tool to get contacts from Google Sheets
+          const result = await this.callMCPTool(
             googleWorkspaceMcp, 
-            `/coach/${coachId}/sheets-contacts`,
-            'GET',
-            null,
-            req.headers
+            'sheets_contacts_list',
+            { coach_id: coachId }
           );
           
           res.writeHead(result.status || 200);
@@ -350,13 +348,14 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward to Google Workspace MCP to add contact to Google Sheets
-          const result = await this.forwardToMCP(
+          // Call Google Workspace MCP tool to add contact to Google Sheets
+          const result = await this.callMCPTool(
             googleWorkspaceMcp, 
-            `/coach/${coachId}/sheets-contacts`,
-            'POST',
-            body,
-            req.headers
+            'sheets_contacts_add',
+            { 
+              coach_id: coachId,
+              contact_data: body
+            }
           );
           
           res.writeHead(result.status || 200);
@@ -391,13 +390,15 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward to Google Workspace MCP to update contact in Google Sheets
-          const result = await this.forwardToMCP(
+          // Call Google Workspace MCP tool to update contact in Google Sheets
+          const result = await this.callMCPTool(
             googleWorkspaceMcp, 
-            `/coach/${coachId}/sheets-contacts/${contactId}`,
-            'PUT',
-            body,
-            req.headers
+            'sheets_contacts_update',
+            {
+              coach_id: coachId,
+              contact_id: contactId,
+              updates: body
+            }
           );
           
           res.writeHead(result.status || 200);
@@ -431,13 +432,14 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward to Google Workspace MCP to delete contact from Google Sheets
-          const result = await this.forwardToMCP(
+          // Call Google Workspace MCP tool to delete contact from Google Sheets
+          const result = await this.callMCPTool(
             googleWorkspaceMcp, 
-            `/coach/${coachId}/sheets-contacts/${contactId}`,
-            'DELETE',
-            null,
-            req.headers
+            'sheets_contacts_delete',
+            {
+              coach_id: coachId,
+              contact_id: contactId
+            }
           );
           
           res.writeHead(result.status || 200);
@@ -470,13 +472,14 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward to Google Workspace MCP to create/initialize Google Sheet for contacts
-          const result = await this.forwardToMCP(
+          // Call Google Workspace MCP tool to create/initialize Google Sheet for contacts
+          const result = await this.callMCPTool(
             googleWorkspaceMcp, 
-            `/coach/${coachId}/init-sheets-contacts`,
-            'POST',
-            body,
-            req.headers
+            'sheets_contacts_init',
+            {
+              coach_id: coachId,
+              sheet_name: body.sheetName
+            }
           );
           
           res.writeHead(result.status || 200);
@@ -877,6 +880,56 @@ class OrchestratorServer {
       });
       req.on('error', reject);
     });
+  }
+
+  async callMCPTool(mcp, toolName, params = {}) {
+    const fetch = require('node-fetch');
+    
+    try {
+      const targetUrl = `${mcp.url}/mcp/v1/tools/call`;
+      
+      const options = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: toolName,
+          arguments: params
+        }),
+        timeout: mcp.timeout || 30000
+      };
+      
+      this.logger.info(`🔧 Calling MCP tool ${toolName} on ${mcp.name}`);
+      const response = await fetch(targetUrl, options);
+      
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
+      }
+      
+      this.logger.info(`✅ MCP tool ${toolName} responded with status ${response.status}`);
+      
+      return {
+        status: response.status,
+        data,
+        headers: Object.fromEntries(response.headers)
+      };
+    } catch (error) {
+      this.logger.error(`❌ Failed to call MCP tool ${toolName}:`, error);
+      return {
+        status: 500,
+        data: { 
+          error: 'MCP tool call failed', 
+          message: error.message,
+          tool: toolName,
+          mcp: mcp.name 
+        }
+      };
+    }
   }
 
   async forwardToMCP(mcp, fullUrl, method, body, headers) {
