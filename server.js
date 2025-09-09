@@ -893,7 +893,7 @@ class OrchestratorServer {
         res.writeHead(200);
         res.end(JSON.stringify({
           service: 'Paestro MCP Orchestrator',
-          version: '1.0.0',
+          version: '1.0.1', // OAuth callback fix deployed
           status: 'running',
           websocket: this.io ? 'enabled' : 'disabled',
           endpoints: {
