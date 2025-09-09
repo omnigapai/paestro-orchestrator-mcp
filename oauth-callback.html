@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Callback - Processing...</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .success {
+            color: #10b981;
+            font-size: 1.25rem;
+            margin-top: 1rem;
+        }
+        .error {
+            color: #ef4444;
+            font-size: 1rem;
+            margin-top: 1rem;
+        }
+        .message {
+            color: #6b7280;
+            margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="spinner" id="spinner"></div>
+        <h2 id="status">Processing OAuth...</h2>
+        <p class="message" id="message">Please wait while we complete the authentication.</p>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const messageEl = document.getElementById('message');
+        const spinnerEl = document.getElementById('spinner');
+
+        async function handleOAuthCallback() {
+            try {
+                // Get URL parameters
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+                const state = urlParams.get('state');
+                const error = urlParams.get('error');
+                
+                // Check for errors from OAuth provider
+                if (error) {
+                    throw new Error(`OAuth Error: ${error} - ${urlParams.get('error_description') || 'Unknown error'}`);
+                }
+                
+                if (!code) {
+                    throw new Error('No authorization code received');
+                }
+
+                // Parse state to get coach info
+                let coachId, coachEmail, redirectUri;
+                try {
+                    const stateData = JSON.parse(atob(state));
+                    coachId = stateData.coachId;
+                    coachEmail = stateData.coachEmail;
+                    redirectUri = stateData.redirectUri || window.location.origin + '/oauth-callback';
+                } catch (e) {
+                    console.warn('Could not parse state, using defaults');
+                    coachId = localStorage.getItem('coachId');
+                    coachEmail = localStorage.getItem('coachEmail');
+                    redirectUri = window.location.origin + '/oauth-callback';
+                }
+
+                statusEl.textContent = 'Exchanging authorization code...';
+                messageEl.textContent = 'Connecting to Google Workspace...';
+
+                // Exchange the code for tokens
+                const response = await fetch('/oauth/google/token-exchange', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        code,
+                        state,
+                        coachId,
+                        coachEmail,
+                        redirectUri
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Token exchange failed');
+                }
+
+                // Store tokens in localStorage
+                if (result.access_token) {
+                    localStorage.setItem('google_access_token', result.access_token);
+                    localStorage.setItem('google_refresh_token', result.refresh_token || '');
+                    localStorage.setItem('google_token_expiry', result.expiry_date || '');
+                    localStorage.setItem('google_oauth_complete', 'true');
+                    localStorage.setItem('google_oauth_coach_id', coachId);
+                }
+
+                // Show success
+                spinnerEl.style.display = 'none';
+                statusEl.className = 'success';
+                statusEl.textContent = '✓ Successfully Connected!';
+                messageEl.textContent = 'Your Google Workspace is now connected. This window will close automatically.';
+
+                // Notify parent window if it exists
+                if (window.opener && !window.opener.closed) {
+                    try {
+                        window.opener.postMessage({
+                            type: 'oauth-success',
+                            data: {
+                                success: true,
+                                coachId,
+                                coachEmail,
+                                tokens: {
+                                    access_token: result.access_token,
+                                    refresh_token: result.refresh_token,
+                                    expiry_date: result.expiry_date
+                                }
+                            }
+                        }, '*');
+                    } catch (e) {
+                        console.warn('Could not communicate with parent window:', e);
+                    }
+                }
+
+                // Close window after 2 seconds
+                setTimeout(() => {
+                    if (window.opener && !window.opener.closed) {
+                        window.close();
+                    } else {
+                        // If no parent window, redirect to dashboard
+                        window.location.href = '/coach/dashboard';
+                    }
+                }, 2000);
+
+            } catch (error) {
+                console.error('OAuth callback error:', error);
+                
+                // Show error
+                spinnerEl.style.display = 'none';
+                statusEl.className = 'error';
+                statusEl.textContent = '✗ Authentication Failed';
+                messageEl.className = 'error';
+                messageEl.textContent = error.message;
+
+                // Notify parent window of error
+                if (window.opener && !window.opener.closed) {
+                    try {
+                        window.opener.postMessage({
+                            type: 'oauth-error',
+                            data: {
+                                success: false,
+                                error: error.message
+                            }
+                        }, '*');
+                    } catch (e) {
+                        console.warn('Could not communicate with parent window:', e);
+                    }
+                }
+
+                // Close window after 5 seconds on error
+                setTimeout(() => {
+                    if (window.opener && !window.opener.closed) {
+                        window.close();
+                    } else {
+                        window.location.href = '/coach/dashboard';
+                    }
+                }, 5000);
+            }
+        }
+
+        // Start the OAuth callback handling
+        handleOAuthCallback();
+    </script>
+</body>
+</html>

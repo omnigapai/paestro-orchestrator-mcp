@@ -68,6 +68,55 @@ class OrchestratorServer {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const pathname = url.pathname;
       const method = req.method;
+
+      // Serve OAuth callback HTML page
+      if (pathname === '/oauth-callback' && method === 'GET') {
+        const fs = require('fs');
+        const path = require('path');
+        const callbackPath = path.join(__dirname, 'oauth-callback.html');
+        
+        if (fs.existsSync(callbackPath)) {
+          const html = fs.readFileSync(callbackPath, 'utf8');
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(html);
+        } else {
+          // Fallback if file doesn't exist
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(`<!DOCTYPE html>
+<html><body>
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const state = params.get('state');
+  const error = params.get('error');
+  
+  // Try to exchange the token immediately
+  fetch('/oauth/google/token-exchange', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, state })
+  }).then(r => r.json()).then(data => {
+    if (window.opener) {
+      window.opener.postMessage({ 
+        type: 'oauth-success', 
+        data
+      }, '*');
+      setTimeout(() => window.close(), 1000);
+    }
+  }).catch(err => {
+    if (window.opener) {
+      window.opener.postMessage({ 
+        type: 'oauth-error', 
+        error: err.message
+      }, '*');
+    }
+  });
+  document.body.innerHTML = '<h2>Processing OAuth... This window will close automatically.</h2>';
+</script>
+</body></html>`);
+        }
+        return;
+      }
       
       // Enhanced request debugging
       this.logger.info(`🌐 Incoming ${method} ${req.url}`);
@@ -695,8 +744,8 @@ class OrchestratorServer {
         return;
       }
 
-      // OAuth token exchange endpoint - Handle authorization code exchange
-      if (pathname === '/oauth/exchange' && method === 'POST') {
+      // OAuth token exchange endpoints - Handle authorization code exchange
+      if ((pathname === '/oauth/exchange' || pathname === '/oauth/google/token-exchange') && method === 'POST') {
         const body = await this.getRequestBody(req);
         let { code, coachId, coachEmail, state, redirectUri } = body;
         
