@@ -493,6 +493,123 @@ class OrchestratorServer {
         return;
       }
 
+      // Add a new contact to Google Sheets
+      if (pathname.match(/^\/coach\/[^/]+\/add-sheets-contact$/) && method === 'POST') {
+        const coachId = pathname.split('/')[2];
+        const body = await this.getRequestBody(req);
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              error: 'Google Workspace MCP not available'
+            }));
+            return;
+          }
+
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/coach/${coachId}/add-sheets-contact`,
+            'POST',
+            body,
+            req.headers
+          );
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Add Google Sheets Contact error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Failed to add contact to Google Sheets',
+            details: error.message
+          }));
+        }
+        return;
+      }
+
+      // Update an existing contact in Google Sheets
+      if (pathname.match(/^\/coach\/[^/]+\/update-sheets-contact\/[^/]+$/) && method === 'PUT') {
+        const parts = pathname.split('/');
+        const coachId = parts[2];
+        const contactId = parts[4];
+        const body = await this.getRequestBody(req);
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              error: 'Google Workspace MCP not available'
+            }));
+            return;
+          }
+
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/coach/${coachId}/update-sheets-contact/${contactId}`,
+            'PUT',
+            body,
+            req.headers
+          );
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Update Google Sheets Contact error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Failed to update contact in Google Sheets',
+            details: error.message
+          }));
+        }
+        return;
+      }
+
+      // Delete a contact from Google Sheets
+      if (pathname.match(/^\/coach\/[^/]+\/delete-sheets-contact\/[^/]+$/) && method === 'DELETE') {
+        const parts = pathname.split('/');
+        const coachId = parts[2];
+        const contactId = parts[4];
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              error: 'Google Workspace MCP not available'
+            }));
+            return;
+          }
+
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/coach/${coachId}/delete-sheets-contact/${contactId}`,
+            'DELETE',
+            null,
+            req.headers
+          );
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Delete Google Sheets Contact error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Failed to delete contact from Google Sheets',
+            details: error.message
+          }));
+        }
+        return;
+      }
+
       // Get calendar events
       if (pathname === '/calendar/events' && method === 'GET') {
         const coachId = url.searchParams.get('coachId');
