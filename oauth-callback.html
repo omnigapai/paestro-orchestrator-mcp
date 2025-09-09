@@ -98,12 +98,10 @@
                 messageEl.textContent = 'Connecting to Google Workspace...';
 
                 // Exchange the code for tokens
-                // Use the production URL when on Railway, localhost otherwise
-                const baseUrl = window.location.hostname.includes('railway.app') 
-                    ? 'https://paestro-orchestrator-mcp-production.up.railway.app'
-                    : '';
+                // Call the Google Workspace MCP directly for token exchange
+                const workspaceMcpUrl = 'https://paestro-google-workspace-mcp-production.up.railway.app';
                     
-                const response = await fetch(baseUrl + '/oauth/google/token-exchange', {
+                const response = await fetch(workspaceMcpUrl + '/oauth/exchange', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
