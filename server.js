@@ -91,7 +91,10 @@ class OrchestratorServer {
   const error = params.get('error');
   
   // Try to exchange the token immediately
-  fetch('/oauth/google/token-exchange', {
+  const baseUrl = window.location.hostname.includes('railway.app') 
+    ? 'https://paestro-orchestrator-mcp-production.up.railway.app'
+    : '';
+  fetch(baseUrl + '/oauth/google/token-exchange', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ code, state })
