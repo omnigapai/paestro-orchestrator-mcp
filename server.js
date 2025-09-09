@@ -290,6 +290,209 @@ class OrchestratorServer {
         return;
       }
 
+      // Get Google Sheets Contacts for coach
+      if (pathname.match(/^\/coach\/[^/]+\/sheets-contacts$/) && method === 'GET') {
+        const coachId = pathname.split('/')[2];
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              contacts: [],
+              total: 0,
+              coach_id: coachId,
+              message: 'Google Workspace MCP not available'
+            }));
+            return;
+          }
+
+          // Forward to Google Workspace MCP to get contacts from Google Sheets
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/coach/${coachId}/sheets-contacts`,
+            'GET',
+            null,
+            req.headers
+          );
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Google Sheets Contacts error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Failed to fetch Google Sheets Contacts',
+            details: error.message,
+            contacts: [],
+            total: 0,
+            coach_id: coachId
+          }));
+        }
+        return;
+      }
+
+      // Add contact to Google Sheets
+      if (pathname.match(/^\/coach\/[^/]+\/sheets-contacts$/) && method === 'POST') {
+        const coachId = pathname.split('/')[2];
+        const body = await this.getRequestBody(req);
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              error: 'Google Workspace MCP not available'
+            }));
+            return;
+          }
+
+          // Forward to Google Workspace MCP to add contact to Google Sheets
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/coach/${coachId}/sheets-contacts`,
+            'POST',
+            body,
+            req.headers
+          );
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Add Google Sheets Contact error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Failed to add contact to Google Sheets',
+            details: error.message
+          }));
+        }
+        return;
+      }
+
+      // Update contact in Google Sheets
+      if (pathname.match(/^\/coach\/[^/]+\/sheets-contacts\/[^/]+$/) && method === 'PUT') {
+        const parts = pathname.split('/');
+        const coachId = parts[2];
+        const contactId = parts[4];
+        const body = await this.getRequestBody(req);
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              error: 'Google Workspace MCP not available'
+            }));
+            return;
+          }
+
+          // Forward to Google Workspace MCP to update contact in Google Sheets
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/coach/${coachId}/sheets-contacts/${contactId}`,
+            'PUT',
+            body,
+            req.headers
+          );
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Update Google Sheets Contact error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Failed to update contact in Google Sheets',
+            details: error.message
+          }));
+        }
+        return;
+      }
+
+      // Delete contact from Google Sheets
+      if (pathname.match(/^\/coach\/[^/]+\/sheets-contacts\/[^/]+$/) && method === 'DELETE') {
+        const parts = pathname.split('/');
+        const coachId = parts[2];
+        const contactId = parts[4];
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              error: 'Google Workspace MCP not available'
+            }));
+            return;
+          }
+
+          // Forward to Google Workspace MCP to delete contact from Google Sheets
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/coach/${coachId}/sheets-contacts/${contactId}`,
+            'DELETE',
+            null,
+            req.headers
+          );
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Delete Google Sheets Contact error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Failed to delete contact from Google Sheets',
+            details: error.message
+          }));
+        }
+        return;
+      }
+
+      // Initialize Google Sheets contact database for coach
+      if (pathname.match(/^\/coach\/[^/]+\/init-sheets-contacts$/) && method === 'POST') {
+        const coachId = pathname.split('/')[2];
+        const body = await this.getRequestBody(req);
+        
+        try {
+          const googleWorkspaceMcp = this.discoveryService.getMcp('google-workspace');
+          if (!googleWorkspaceMcp || googleWorkspaceMcp.status !== 'active') {
+            res.writeHead(200);
+            res.end(JSON.stringify({ 
+              success: false,
+              error: 'Google Workspace MCP not available'
+            }));
+            return;
+          }
+
+          // Forward to Google Workspace MCP to create/initialize Google Sheet for contacts
+          const result = await this.forwardToMCP(
+            googleWorkspaceMcp, 
+            `/coach/${coachId}/init-sheets-contacts`,
+            'POST',
+            body,
+            req.headers
+          );
+          
+          res.writeHead(result.status || 200);
+          res.end(JSON.stringify(result.data));
+        } catch (error) {
+          this.logger.error('Initialize Google Sheets Contacts error:', error);
+          res.writeHead(500);
+          res.end(JSON.stringify({ 
+            success: false,
+            error: 'Failed to initialize Google Sheets for contacts',
+            details: error.message
+          }));
+        }
+        return;
+      }
+
       // Get calendar events
       if (pathname === '/calendar/events' && method === 'GET') {
         const coachId = url.searchParams.get('coachId');
@@ -654,8 +857,10 @@ class OrchestratorServer {
       this.handleSocketConnection(socket);
     });
 
-    this.server.listen(PORT, () => {
-      this.logger.info(`✅ MCP Orchestrator Server running on port ${PORT}`);
+    // Bind to 0.0.0.0 for Railway deployment
+    const HOST = process.env.HOST || '0.0.0.0';
+    this.server.listen(PORT, HOST, () => {
+      this.logger.info(`✅ MCP Orchestrator Server running on ${HOST}:${PORT}`);
       this.logger.info(`🌐 Health check: http://localhost:${PORT}/health`);
       this.logger.info(`🔍 MCP discovery: http://localhost:${PORT}/api/mcps`);
       this.logger.info(`🔌 Socket.IO endpoint: http://localhost:${PORT}/socket.io/`);
