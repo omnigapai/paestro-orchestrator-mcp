@@ -360,12 +360,12 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward to Google Workspace MCP HTTP route to get contacts from Google Sheets
+          // Forward to Google Workspace MCP REST-style route to get contacts from Google Sheets
           const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            '/sheets-contacts/list',
-            'POST',
-            { coach_id: coachId },
+            `/coach/${coachId}/sheets-contacts`,
+            'GET',
+            null,
             req.headers
           );
           
@@ -402,15 +402,12 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward to Google Workspace MCP HTTP route to add contact to Google Sheets
+          // Forward to Google Workspace MCP REST-style route to add contact to Google Sheets
           const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            '/sheets-contacts/add',
+            `/coach/${coachId}/sheets-contacts`,
             'POST',
-            { 
-              coach_id: coachId,
-              contact_data: body
-            },
+            body, // Pass the contact data directly
             req.headers
           );
           
@@ -532,15 +529,12 @@ class OrchestratorServer {
             return;
           }
 
-          // Forward to Google Workspace MCP HTTP route to create/initialize Google Sheet for contacts
+          // Forward to Google Workspace MCP REST-style endpoint to create/initialize Google Sheet for contacts
           const result = await this.forwardToMCP(
             googleWorkspaceMcp, 
-            '/sheets-contacts/init',
+            `/coach/${coachId}/init-sheets-contacts`,
             'POST',
-            {
-              coach_id: coachId,
-              sheet_name: body.sheetName
-            },
+            body, // Pass the body as-is (contains sheet_name)
             req.headers
           );
           
