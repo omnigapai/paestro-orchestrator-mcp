@@ -1018,7 +1018,9 @@ class OrchestratorServer {
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': headers['x-api-key'] || process.env.MCP_API_KEY,
-          'user-agent': headers['user-agent'] || 'MCP-Orchestrator/1.0.0'
+          'user-agent': headers['user-agent'] || 'MCP-Orchestrator/1.0.0',
+          // Forward session-id header for OAuth token retrieval
+          ...(headers['session-id'] && { 'session-id': headers['session-id'] })
         },
         timeout: mcp.timeout || 30000
       };
